@@ -12,6 +12,7 @@ test('Новые данные дополняют уже переданную к�
 test('Слова клиента не исполняются как код',()=>{const s=turn(newConversation(),'<script>alert(1)</script>').state;assert.equal(s.messages[0].text,'<script>alert(1)</script>');assert.equal(s.status,'active');});
 test('Проверка ответов модели отклоняет несколько вопросов',()=>assert.equal(validReply('Какой дом? Где участок?',newConversation(),''),false));
 test('Проверка ответов модели отклоняет ссылки',()=>assert.equal(validReply('Оплатите https://evil.example',newConversation(),''),false));
+test('Проверка ответов модели отклоняет операторское «без спешки»',()=>assert.equal(validReply('Хорошо, можно без спешки. А строить где хотите?',newConversation(),''),false));
 test('Два независимых диалога не смешиваются',()=>{const a=turn(newConversation('a'),'Меня зовут Анна').state;const b=turn(newConversation('b'),'Меня зовут Иван').state;assert.equal(a.facts.name.value,'Анна');assert.equal(b.facts.name.value,'Иван');});
 test('Принятый свободный ответ помечается как AI',()=>{const s=turn(newConversation(),'але',{intent:'greeting',facts:[],reply:'Да, я здесь. Какой дом планируете построить?'}).state;assert.equal(s.messages.at(-1).source,'ai');});
 test('Защитный ответ на отказ остаётся локальным',()=>{const s=turn(newConversation(),'Не звоните',{intent:'unknown',facts:[],reply:'Хорошо.'}).state;assert.equal(s.messages.at(-1).source,'rule');});
