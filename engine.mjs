@@ -1,5 +1,5 @@
 import { fieldLabels } from './public/knowledge.mjs';
-export const INTENTS = ['greeting','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
+export const INTENTS = ['greeting','just_browsing','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
 const norm = t => t.toLowerCase().replaceAll('ё','е').replace(/кв\.?\s*м\.?/g,'м²').replace(/расч[еи]т|расчет/g,'расчет');
 export function newConversation(id='test',{humanImperfection=false}={}) {
   return {id, messages:[], facts:{}, asked:[], status:'active', channel:'Не выбран', noCalls:false, phoneRefused:false, handoff:null, events:[], sourceIds:[], intent:'greeting', revision:0, style:{humanImperfection,imperfectionUsed:false}};
@@ -61,6 +61,7 @@ export function detect(raw) {
   if(/не звон|без звон|никаких звон/.test(t))return 'no_calls';
   if(/(?:телефон|номер).*(?:не дам|не хочу|не остав|не даю)|не (?:хочу|буду|стану).*(?:телефон|номер)|без телефона|пишите (?:здесь|сюда)|только (?:в )?чат/.test(t))return 'no_phone';
   if(/неприлич|(?:слишком\s+)?(?:грубо|сухо)(?:\s+(?:ответ|напис|общ|сказ))?|по[- ]?человечески|нормально\s+(?:напиши|ответь|общай)|что\s+за\s+(?:ответ|формулиров)|как\s+(?:робот|нейросет)|странно\s+(?:напис|звуч)|так\s+не\s+говорят/.test(t))return 'tone_feedback';
+  if(/(?:пока\s+)?просто\s+(?:смотрю|смотрим|присматриваюсь)|пока\s+(?:смотрю|выбираю|присматриваюсь)|ничего\s+конкретного|смотрю\s+варианты|только\s+начал(?:а|и)?\s+смотреть/.test(t))return 'just_browsing';
   if(/(?:человек|живой|менеджер|оператор)/.test(t)&&/(?:нуж|позов|дайте|подключ|хочу|поговор|переда|свяж)/.test(t))return 'human';
   if(/почему.*(?:цен|дорож|разниц)|разбег|разниц.*цен|цен.*друг|друг.*цен|обман|развод|в объявлении.*(?:а |но )|вы.*другие цифры|дороже/.test(t))return 'price_conflict';
   if(/ты бот|вы бот|робот|нейросет|ты человек|вы человек/.test(t))return 'identity';
@@ -159,6 +160,10 @@ export function turn(old, raw, semantic=null) {
     s.status='stopped';locked=true;reply='';event(s,'Ответ отключён после отказа. Для новой проверки начните новый диалог.');
   }else if(firstAssistant&&/^\s*(?:але|алло|ау|вы\s+тут|есть\s+кто)\s*[?!.]*\s*$/.test(t)){
     locked=true;reply='Добрый день! Меня зовут Иван. Какой у вас вопрос?';
+  }else if(!firstAssistant&&/^\s*(?:але|алло|ау|вы\s+тут|есть\s+кто)\s*[?!.]*\s*$/.test(t)){
+    locked=true;reply='Да, я тут.';
+  }else if(intent==='just_browsing'){
+    locked=true;reply='Хорошо. Может, у вас есть вопросы по дому или ипотеке? Спрашивайте.';
   }else if(intent==='no_calls'||intent==='no_phone'){
     s.noCalls=true;s.phoneRefused=intent==='no_phone'||s.phoneRefused;s.channel='Чат Авито';locked=true;
     reply=(intent==='no_calls'?'Хорошо, без звонков — продолжим здесь. ':'Хорошо, продолжим здесь. ')+next(s);
