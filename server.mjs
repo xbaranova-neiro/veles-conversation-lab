@@ -1,7 +1,9 @@
 import http from 'node:http';
 import {readFile} from 'node:fs/promises';
+import {existsSync,mkdirSync,readFileSync,renameSync,writeFileSync} from 'node:fs';
 import {randomUUID,randomBytes} from 'node:crypto';
 import {fileURLToPath} from 'node:url';
+import {dirname} from 'node:path';
 import {newConversation,turn,detect} from './engine.mjs';
 import {generate} from './ai.mjs';
 import {runChecks} from './checks.mjs';
@@ -13,8 +15,21 @@ const conversationTitle=state=>{
  return first?(first.length>38?first.slice(0,38)+'…':first):'Новый диалог';
 };
 const conversationList=session=>[session.state,...session.conversations].map(state=>({id:state.id,title:conversationTitle(state),status:state.status,messages:state.messages.filter(message=>message.role==='user').length,active:state.id===session.state.id}));
-export function createApp(){
+const exportSession=session=>({exportedAt:new Date().toISOString(),environment:'Тестовая лаборатория «Велес»',conversations:[session.state,...session.conversations].filter(state=>state.messages.length)});
+function archiveStore(archiveFile){
+ if(!archiveFile)return {restore:()=>null,save:()=>{}};
+ mkdirSync(dirname(archiveFile),{recursive:true});
+ let data={version:1,updatedAt:null,sessions:{}};
+ try{if(existsSync(archiveFile))data=JSON.parse(readFileSync(archiveFile,'utf8'));}catch{data={version:1,updatedAt:null,sessions:{}};}
+ const flush=()=>{const temporary=archiveFile+'.tmp';writeFileSync(temporary,JSON.stringify(data,null,2));renameSync(temporary,archiveFile);};
+ return {
+  restore:id=>data.sessions?.[id]?.conversations||null,
+  save:(id,session)=>{const conversations=exportSession(session).conversations;if(!conversations.length)return;data.updatedAt=new Date().toISOString();data.sessions[id]={updatedAt:data.updatedAt,conversations};const ids=Object.keys(data.sessions).sort((a,b)=>data.sessions[b].updatedAt.localeCompare(data.sessions[a].updatedAt));for(const stale of ids.slice(200))delete data.sessions[stale];flush();}
+ };
+}
+export function createApp({archiveFile=null}={}){
  const sessions=new Map();
+ const archive=archiveStore(archiveFile);
  const serverKey=process.env.OPENAI_API_KEY?.trim()||'';
  const serverModel=process.env.OPENAI_MODEL?.trim()||'gpt-5.5';
  const server=http.createServer(async(req,res)=>{
@@ -35,12 +50,15 @@ export function createApp(){
    for(const [key,v] of sessions)if(Date.now()-v.touched>8*60*60*1000)sessions.delete(key);
    if(req.method==='GET'&&path==='/api/bootstrap'){
     if(!session){if(sessions.size>=100){send(503,{error:'Слишком много тестовых сессий.'});return;}
-     const sid=randomUUID();session={csrf:randomBytes(24).toString('hex'),state:newConversation(randomUUID(),{humanImperfection:Math.random()<0.02}),conversations:[],settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
+     const restored=id?archive.restore(id):null;const sid=restored?.length?id:randomUUID();session={csrf:randomBytes(24).toString('hex'),state:restored?.[0]||newConversation(randomUUID(),{humanImperfection:Math.random()<0.02}),conversations:restored?.slice(1,20)||[],settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
      res.setHeader('Set-Cookie',`veles_session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${protocol==='https'?'; Secure':''}`);
     }
     session.touched=Date.now();send(200,{csrf:session.csrf,state:session.state,conversations:conversationList(session),settings:{mode:session.settings.mode,model:session.settings.model,hasKey:!!session.settings.apiKey,serverManagedKey:!!serverKey}});return;
    }
    if(!session||req.headers['x-csrf-token']!==session.csrf){send(403,{error:'Сессия истекла. Обновите страницу.'});return;}
+   if(req.method==='GET'&&path==='/api/export'){
+    res.writeHead(200,{'Content-Type':'application/json; charset=utf-8','Content-Disposition':'attachment; filename="veles-all-dialogs.json"'});res.end(JSON.stringify(exportSession(session),null,2));return;
+   }
    if(req.method!=='POST'){send(405,{error:'Метод не поддерживается'});return;}
    if(!req.headers['content-type']?.startsWith('application/json')){send(415,{error:'Ожидается JSON'});return;}
    let body='';for await(const chunk of req){body+=chunk;if(Buffer.byteLength(body)>16000){send(413,{error:'Запрос слишком большой'});return;}}
@@ -50,6 +68,7 @@ export function createApp(){
    if(path==='/api/new'){
     if(session.state.messages.length)session.conversations.unshift(session.state);
     session.conversations=session.conversations.slice(0,19);session.state=newConversation(randomUUID(),{humanImperfection:Math.random()<0.02});
+    archive.save(id,session);
     send(200,{state:session.state,conversations:conversationList(session)});return;
    }
    if(path==='/api/switch'){
@@ -57,6 +76,7 @@ export function createApp(){
     if(index<0){send(404,{error:'Диалог не найден или уже завершён.'});return;}
     const current=session.state;session.state=session.conversations.splice(index,1)[0];
     if(current.messages.length)session.conversations.unshift(current);
+    archive.save(id,session);
     send(200,{state:session.state,conversations:conversationList(session)});return;
    }
    if(path==='/api/settings'){
@@ -78,6 +98,7 @@ export function createApp(){
      let semantic=null;const localPlan=turn(session.state,data.text);
      if(session.settings.mode==='ai'&&!localPlan.locked)semantic=await generate(session.state,data.text,session.settings);
      const result=turn(session.state,data.text,semantic);session.state=result.state;
+     archive.save(id,session);
      send(200,{...result,conversations:conversationList(session),mode:session.settings.mode,usedModel:!!semantic});
     }finally{session.busy=false;}return;
    }
@@ -87,5 +108,5 @@ export function createApp(){
  return server;
 }
 if(process.argv[1]===fileURLToPath(import.meta.url)){
- const port=Number(process.env.PORT||process.env.VELES_PORT||4173);const host=process.env.VELES_HOST||'127.0.0.1';const server=createApp();server.listen(port,host,()=>console.log(`Veles prototype: http://${host}:${port}`));
+ const port=Number(process.env.PORT||process.env.VELES_PORT||4173);const host=process.env.VELES_HOST||'127.0.0.1';const archiveFile=process.env.VELES_ARCHIVE_FILE||fileURLToPath(new URL('./data/alexey-dialogs.json',import.meta.url));const server=createApp({archiveFile});server.listen(port,host,()=>console.log(`Veles prototype: http://${host}:${port}`));
 }
