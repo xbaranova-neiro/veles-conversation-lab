@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="ru">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#1d443c"><title>Велес · Лаборатория диалогов</title><link rel="stylesheet" href="/style.css"></head>
+<body>
+ <div class="app-shell">
+  <aside class="sidebar">
+   <a class="brand" href="/" aria-label="Велес — начало"><span class="brand-mark">В</span><span>ВЕЛЕС<small>ЛАБОРАТОРИЯ ДИАЛОГОВ</small></span></a>
+   <div class="workspace-label">РАБОЧЕЕ ПРОСТРАНСТВО</div>
+   <nav aria-label="Разделы"><button class="nav-item active" data-view="chat"><span>◫</span>Тестовый чат<small>01</small></button><button class="nav-item" data-view="knowledge"><span>▤</span>База знаний<small>02</small></button><button class="nav-item" data-view="tests"><span>✓</span>Проверка качества<small>03</small></button></nav>
+   <div class="sidebar-note"><span class="mini-house">⌂</span><h3>Сначала услышать.<br>Потом помочь.</h3><p>Короткий ответ, один вопрос<br>и естественный переход к созвону.</p><div class="note-line"></div><span>ПРОТОТИП / СЕНТЯБРЬ 2026</span></div>
+   <div class="sidebar-bottom"><i></i><span>Локальная тестовая среда<small>Авито и Битрикс24 не подключены</small></span></div>
+  </aside>
+  <main>
+   <header class="topbar"><span class="breadcrumb">Велес <span>/</span> <strong id="page-title">Тестовый чат</strong></span><div class="top-actions"><span id="mode-badge" class="badge amber">Сценарный режим</span><button id="settings-open" class="button subtle">Настройки AI <span>↗</span></button></div></header>
+   <section id="chat-view" class="view">
+    <div class="page-heading"><div class="eyebrow">CONVERSATION LAB</div><div class="heading-row"><div><h1>Хороший дом начинается<br>с хорошего разговора.</h1><p>Побудьте клиентом. Посмотрите, как помощник слышит вас.</p></div><button id="reset" class="button outline" aria-label="Новый диалог">↻ <span>Новый диалог</span></button></div></div>
+    <div class="lab-grid">
+     <section class="chat-panel" aria-label="Чат с клиентом">
+      <div class="chat-header"><div class="avatar">В</div><div><h2>Велес <span class="verified">✓</span></h2><span id="agent-status"><i></i> Виртуальный помощник</span></div><span class="channel-label">ТЕСТ ЧАТА АВИТО</span></div>
+      <div class="ad-strip"><div class="house-icon">⌂</div><div><strong>Строительство дома под ключ</strong><small>Объявление №7915970008 · индивидуальный расчёт</small></div><span>↗</span></div>
+      <div id="messages" class="messages" role="log" aria-live="polite" aria-label="Переписка"></div>
+      <div id="handoff-banner" class="handoff-banner" hidden></div>
+      <div class="composer-wrap"><div id="message-error" class="error" role="alert" hidden></div><form id="composer"><label class="sr-only" for="message-input">Ваше сообщение</label><textarea id="message-input" placeholder="Напишите как обычный клиент…" rows="1" maxlength="2000"></textarea><button type="submit" id="send" aria-label="Отправить сообщение">↑</button></form><div class="composer-note"><span>Enter — отправить · Shift + Enter — новая строка</span><span id="char-count">0 / 2000</span></div></div>
+     </section>
+     <aside class="inspector">
+      <div class="inspector-header"><div><span class="eyebrow">ЗА КУЛИСАМИ</span><h2>Что понял помощник</h2></div><span class="live-dot"></span></div>
+      <div class="inspector-tabs" role="tablist"><button role="tab" aria-selected="true" data-pane="lead">Карточка клиента</button><button role="tab" aria-selected="false" data-pane="trace">Ход диалога</button></div>
+      <div id="lead-pane"><div id="lead-status" class="lead-status">Знакомимся с клиентом</div><div id="lead-fields" class="lead-fields"></div><div id="manager-card" class="manager-card" hidden></div></div>
+      <div id="trace-pane" hidden><div id="events" class="events"></div></div>
+      <div class="source-box"><span class="eyebrow">ОСНОВАНИЕ ОТВЕТА</span><div id="sources">Подтверждённые сведения появятся здесь по ходу разговора.</div></div>
+      <button id="export" class="button outline full">↓ Скачать диалог и карточку</button><p class="privacy-note">Диалог хранится в памяти локального сервера. В сценарном режиме никуда не отправляется.</p>
+     </aside>
+    </div>
+    <section class="scenarios"><div class="section-title"><h2>Попробуйте сложный разговор</h2><span>Выберите сценарий — сообщения отправляете вы</span></div><div id="scenario-list" class="scenario-list"></div><div id="scenario-player" class="scenario-player" hidden></div></section>
+    <div id="mode-explainer" class="mode-explainer"><span>◌</span><p><strong>Сейчас ответы формирует сценарный движок.</strong> Он проверяет логику, но не понимает произвольную речь как AI. Для свободного диалога подключите модель в настройках.</p></div>
+   </section>
+   <section id="knowledge-view" class="view" hidden><div class="page-heading"><div class="eyebrow">KNOWLEDGE BASE / V2</div><h1>Отвечает по делу.<br>Продолжает разговор.</h1><p>База знаний соединяет факты о компании с логикой тёплого первого контакта.</p></div><div class="knowledge-intro"><strong>Главная задача — понять планы клиента и получить контакт.</strong><span>Помощник отвечает на вопрос, задаёт один уместный следующий вопрос и после нескольких деталей естественно предлагает созвон.</span></div><div id="knowledge-grid" class="knowledge-grid"></div></section>
+   <section id="tests-view" class="view" hidden><div class="page-heading"><div class="eyebrow">QUALITY CHECK</div><div class="heading-row"><div><h1>Проверяем не слова.<br>Проверяем поведение.</h1><p>Повторяемые сценарии: память, контакт, спор о цене и передача.</p></div><button id="run-checks" class="button primary">Запустить проверки ↗</button></div></div><div class="test-summary"><div><strong id="test-score">—</strong><span>проверок пройдено</span></div><p id="test-caption">Проверки выполняются локально на сценарном движке. Они не оценивают качество подключённой AI-модели.</p></div><div id="test-results" class="test-results"><p class="empty">Нажмите «Запустить проверки», чтобы увидеть результат каждого сценария.</p></div></section>
+   <footer><span>ВЕЛЕС · ДОМ, КОТОРЫЙ НАЧИНАЕТСЯ С ВАС</span><span>Тестовый прототип · v0.1</span></footer>
+  </main>
+ </div>
+ <dialog id="settings-dialog"><form id="settings-form"><div class="modal-heading"><div><div class="eyebrow">ПОДКЛЮЧЕНИЕ</div><h2>Как отвечает помощник</h2></div><button type="button" id="settings-close" class="icon-button" aria-label="Закрыть настройки">×</button></div><label class="radio-card"><input type="radio" name="mode" value="demo" checked><span><strong>Сценарный режим</strong><small>Бесплатно и локально. Для проверки логики и передачи.</small></span></label><label class="radio-card"><input type="radio" name="mode" value="ai"><span><strong>Живая AI-модель</strong><small>Свободный диалог через OpenAI API. Запросы оплачиваются по вашему API-тарифу.</small></span></label><div id="ai-fields"><label class="input-label" for="api-key">API-ключ OpenAI</label><input id="api-key" type="password" placeholder="Вставьте ключ только здесь" autocomplete="off"><label class="input-label" for="model-name">Название модели</label><input id="model-name" value="gpt-6-astra" required maxlength="100"><p class="settings-note">Ключ хранится только в памяти локального сервера для этой сессии. В AI-режиме текст тестового диалога и база отправляются в OpenAI. Используйте вымышленные контакты.</p><label class="checkbox-label"><input id="clear-key" type="checkbox">Удалить ранее введённый ключ</label></div><div id="settings-error" class="error" hidden role="alert"></div><button class="button primary full" id="settings-save">Сохранить настройки</button></form></dialog>
+ <dialog id="reset-dialog"><div class="modal-heading"><h2>Начать новый диалог?</h2></div><p>Текущая переписка и карточка очистятся. При необходимости сначала скачайте их.</p><div class="modal-actions"><button id="reset-cancel" class="button outline">Продолжить текущий</button><button id="reset-confirm" class="button primary">Начать новый</button></div></dialog>
+ <div id="toast" class="toast" role="status" hidden></div>
+ <script type="module" src="/app.mjs"></script>
+</body></html>

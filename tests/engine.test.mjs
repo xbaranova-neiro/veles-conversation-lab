@@ -1,0 +1,15 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {cases,runChecks} from '../checks.mjs';
+import {turn,newConversation,validReply} from '../engine.mjs';
+for(const c of cases)test(c.name,()=>{let s=newConversation();for(const text of c.steps)s=turn(s,text,c.semantic).state;assert.ok(c.check(s),JSON.stringify(s));});
+test('Все сценарии проходят и ответы короткие',()=>{const r=runChecks();assert.equal(r.passed,r.total);});
+test('История предыдущего состояния не изменяется',()=>{const old=newConversation();turn(old,'Хочу 80 м²');assert.equal(old.messages.length,0);assert.deepEqual(old.facts,{});});
+test('Беседа помнит отказ от звонков после нового номера',()=>{let s=turn(newConversation(),'Не звоните').state;s=turn(s,'Мой номер 89991234567').state;assert.equal(s.channel,'Чат Авито');assert.equal(s.noCalls,true);});
+test('После отказа от телефона помощник продолжает отвечать в чате',()=>{let s=turn(newConversation(),'Телефон не дам, пишите здесь').state;s=turn(s,'Нужен дом 90 м² и три спальни').state;assert.equal(s.status,'active');assert.equal(s.messages.at(-1).role,'assistant');assert.ok(!s.messages.at(-1).text.includes('номер телефона'));});
+test('Ответ про контроль честно говорит, что камеры сейчас не ставят',()=>{const s=turn(newConversation(),'У вас камера на стройке есть?').state;assert.match(s.messages.at(-1).text,/Камеры сейчас не ставим/);});
+test('Новые данные дополняют уже переданную карточку',()=>{let s=turn(newConversation(),'Мой номер 89991234567').state;const id=s.handoff.id;s=turn(s,'Хочу 90 м² в Алексине и 3 спальни').state;assert.equal(s.handoff.id,id);assert.match(s.handoff.summary,/90 м²/);assert.equal(s.facts.bedrooms.value,'3');assert.equal(s.messages.at(-1).role,'user');});
+test('Слова клиента не исполняются как код',()=>{const s=turn(newConversation(),'<script>alert(1)</script>').state;assert.equal(s.messages[0].text,'<script>alert(1)</script>');assert.equal(s.status,'active');});
+test('Проверка ответов модели отклоняет несколько вопросов',()=>assert.equal(validReply('Какой дом? Где участок?',newConversation(),''),false));
+test('Проверка ответов модели отклоняет ссылки',()=>assert.equal(validReply('Оплатите https://evil.example',newConversation(),''),false));
+test('Два независимых диалога не смешиваются',()=>{const a=turn(newConversation('a'),'Меня зовут Анна').state;const b=turn(newConversation('b'),'Меня зовут Иван').state;assert.equal(a.facts.name.value,'Анна');assert.equal(b.facts.name.value,'Иван');});
