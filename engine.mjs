@@ -191,9 +191,10 @@ export function turn(old, raw, semantic=null) {
     }
   }
   // Replace only conversational text, never contact/stop/handoff decisions.
-  if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)) reply=semantic.reply;
+  let replySource='rule';
+  if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
-  if(reply)s.messages.push({role:'assistant',text:reply,at:new Date().toISOString()});
+  if(reply)s.messages.push({role:'assistant',text:reply,at:new Date().toISOString(),source:replySource});
   s.sourceIds=source;s.cards=cards;
   if(s.handoff)s.handoff.summary=summary(s);
   return {state:s,reply,locked,sourceIds:source};

@@ -60,12 +60,13 @@ export function createApp(){
     send(200,{state:session.state,conversations:conversationList(session)});return;
    }
    if(path==='/api/settings'){
+    if(serverKey){session.settings={mode:'ai',model:serverModel,apiKey:serverKey};send(200,{settings:{mode:'ai',model:serverModel,hasKey:true,serverManagedKey:true}});return;}
     if(!['demo','ai'].includes(data.mode)){send(400,{error:'Выберите режим'});return;}
     const key=data.clearKey?'':typeof data.apiKey==='string'&&data.apiKey.trim()?data.apiKey.trim():session.settings.apiKey;
     if(data.mode==='ai'&&!key){send(400,{error:'Для AI-режима нужен API-ключ.'});return;}
     if(typeof data.model!=='string'||!/^[a-zA-Z0-9._:-]{1,100}$/.test(data.model)){send(400,{error:'Укажите название модели'});return;}
     if(key.length>500){send(400,{error:'Проверьте API-ключ'});return;}
-    session.settings={mode:data.mode,model:data.model,apiKey:key};send(200,{settings:{mode:data.mode,model:data.model,hasKey:!!key}});return;
+    session.settings={mode:data.mode,model:data.model,apiKey:key};send(200,{settings:{mode:data.mode,model:data.model,hasKey:!!key,serverManagedKey:false}});return;
    }
    if(path==='/api/checks'){send(200,{report:runChecks()});return;}
    if(path==='/api/message'){
