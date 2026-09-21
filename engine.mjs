@@ -1,5 +1,5 @@
 import { fieldLabels } from './public/knowledge.mjs';
-export const INTENTS = ['greeting','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
+export const INTENTS = ['greeting','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
 const norm = t => t.toLowerCase().replaceAll('ё','е').replace(/кв\.?\s*м\.?/g,'м²').replace(/расч[еи]т|расчет/g,'расчет');
 export function newConversation(id='test',{humanImperfection=false}={}) {
   return {id, messages:[], facts:{}, asked:[], status:'active', channel:'Не выбран', noCalls:false, phoneRefused:false, handoff:null, events:[], sourceIds:[], intent:'greeting', revision:0, style:{humanImperfection,imperfectionUsed:false}};
@@ -60,6 +60,7 @@ export function detect(raw) {
   if(/не беспоко|не пишите|не пиши|больше не надо|отстан|удалите.*номер|отмен(?:ить|ите) заяв|отказываюсь/.test(t))return 'stop';
   if(/не звон|без звон|никаких звон/.test(t))return 'no_calls';
   if(/(?:телефон|номер).*(?:не дам|не хочу|не остав|не даю)|не (?:хочу|буду|стану).*(?:телефон|номер)|без телефона|пишите (?:здесь|сюда)|только (?:в )?чат/.test(t))return 'no_phone';
+  if(/неприлич|(?:слишком\s+)?(?:грубо|сухо)(?:\s+(?:ответ|напис|общ|сказ))?|по[- ]?человечески|нормально\s+(?:напиши|ответь|общай)|что\s+за\s+(?:ответ|формулиров)|как\s+(?:робот|нейросет)|странно\s+(?:напис|звуч)|так\s+не\s+говорят/.test(t))return 'tone_feedback';
   if(/(?:человек|живой|менеджер|оператор)/.test(t)&&/(?:нуж|позов|дайте|подключ|хочу|поговор|переда|свяж)/.test(t))return 'human';
   if(/почему.*(?:цен|дорож|разниц)|разбег|разниц.*цен|цен.*друг|друг.*цен|обман|развод|в объявлении.*(?:а |но )|вы.*другие цифры|дороже/.test(t))return 'price_conflict';
   if(/ты бот|вы бот|робот|нейросет|ты человек|вы человек/.test(t))return 'identity';
@@ -169,6 +170,7 @@ export function turn(old, raw, semantic=null) {
   }else{
     switch(intent){
       case'greeting':reply='Добрый день! Я Иван. Что по дому хотите узнать?';break;
+      case'tone_feedback':reply=old.intent==='mortgage'?'Извините, неудачно написал. Да, с ипотекой работаем. Дом хотите для себя?':old.intent==='price'||old.intent==='price_conflict'?'Извините, неудачно написал. Давайте посчитаем именно ваш дом. По площади сколько хотите?':'Извините, неудачно написал. Скажите, что именно хотите узнать?';break;
       case'identity':reply='Я виртуальный помощник компании «Велес», в тестовом чате меня зовут Иван. Помогу разобраться с первыми вопросами.';break;
       case'price_conflict':reply='Цена может отличаться из-за проекта и участка. По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². '+next(s,'calculation');source=['price'];break;
       case'estimate':reply=(s.facts.area?`Да, посчитаем дом ${s.facts.area.value}.`:'Да, можем посчитать.')+' '+next(s,'calculation');source=['price'];break;
@@ -213,6 +215,7 @@ export function turn(old, raw, semantic=null) {
 }
 export function validReply(reply,s,fallback){
   if(typeof reply!=='string'||reply.length>300||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
+  if(s.messages.some(message=>message.role==='assistant')&&/(?:здравствуйте|добрый\s+(?:день|вечер)|меня зовут\s+иван|я\s+иван)/i.test(reply))return false;
   if(/без спешки|не торопитесь|спокойно сориент|(?:грубая цена|цена грубая|грубый расч[её]т)|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
