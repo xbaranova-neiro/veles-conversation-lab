@@ -1,8 +1,16 @@
 import { fieldLabels } from './public/knowledge.mjs';
 export const INTENTS = ['greeting','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
 const norm = t => t.toLowerCase().replaceAll('ё','е').replace(/кв\.?\s*м\.?/g,'м²').replace(/расч[еи]т|расчет/g,'расчет');
-export function newConversation(id='test') {
-  return {id, messages:[], facts:{}, asked:[], status:'active', channel:'Не выбран', noCalls:false, phoneRefused:false, handoff:null, events:[], sourceIds:[], intent:'greeting', revision:0};
+export function newConversation(id='test',{humanImperfection=false}={}) {
+  return {id, messages:[], facts:{}, asked:[], status:'active', channel:'Не выбран', noCalls:false, phoneRefused:false, handoff:null, events:[], sourceIds:[], intent:'greeting', revision:0, style:{humanImperfection,imperfectionUsed:false}};
+}
+function addHumanImperfection(reply,id){
+  if(/\d|₽|%|https?:|@/.test(reply))return reply;
+  const typos=[['строить','сторить'],['площадь','плоащдь'],['планируете','планриуете'],['участок','учсток'],['обсудим','обсудми'],['Хорошо','Хоршо']];
+  const available=typos.filter(([word])=>reply.includes(word));
+  const variant=[...String(id)].reduce((sum,char)=>sum+char.charCodeAt(0),0)%2;
+  if(variant&&available.length){const [word,typo]=available[0];return reply.replace(word,typo);}
+  return reply.replace(/^([А-ЯЁ])/,letter=>letter.toLowerCase());
 }
 const put=(s,k,value,evidence)=>{ if(value && fieldLabels[k]) s.facts[k]={value:String(value),evidence}; };
 export function extract(s, raw) {
@@ -128,6 +136,7 @@ function next(s,kind='details'){
 }
 export function turn(old, raw, semantic=null) {
   const s=structuredClone(old), before=structuredClone(old.facts), t=norm(raw);
+  s.style??={humanImperfection:false,imperfectionUsed:false};
   s.revision++;s.messages.push({role:'user',text:raw,at:new Date().toISOString()});
   extract(s,raw);
   if(semantic?.facts)for(const fact of semantic.facts){
@@ -194,6 +203,7 @@ export function turn(old, raw, semantic=null) {
   let replySource='rule';
   if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
+  if(reply&&s.style.humanImperfection&&!s.style.imperfectionUsed){const imperfect=addHumanImperfection(reply,s.id);if(imperfect!==reply){reply=imperfect;s.style.imperfectionUsed=true;}}
   if(reply)s.messages.push({role:'assistant',text:reply,at:new Date().toISOString(),source:replySource});
   s.sourceIds=source;s.cards=cards;
   if(s.handoff)s.handoff.summary=summary(s);

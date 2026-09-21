@@ -35,7 +35,7 @@ export function createApp(){
    for(const [key,v] of sessions)if(Date.now()-v.touched>8*60*60*1000)sessions.delete(key);
    if(req.method==='GET'&&path==='/api/bootstrap'){
     if(!session){if(sessions.size>=100){send(503,{error:'Слишком много тестовых сессий.'});return;}
-     const sid=randomUUID();session={csrf:randomBytes(24).toString('hex'),state:newConversation(randomUUID()),conversations:[],settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
+     const sid=randomUUID();session={csrf:randomBytes(24).toString('hex'),state:newConversation(randomUUID(),{humanImperfection:Math.random()<0.02}),conversations:[],settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
      res.setHeader('Set-Cookie',`veles_session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${protocol==='https'?'; Secure':''}`);
     }
     session.touched=Date.now();send(200,{csrf:session.csrf,state:session.state,conversations:conversationList(session),settings:{mode:session.settings.mode,model:session.settings.model,hasKey:!!session.settings.apiKey,serverManagedKey:!!serverKey}});return;
@@ -49,7 +49,7 @@ export function createApp(){
    if(session.busy){send(409,{error:'Дождитесь ответа на предыдущее сообщение.'});return;}
    if(path==='/api/new'){
     if(session.state.messages.length)session.conversations.unshift(session.state);
-    session.conversations=session.conversations.slice(0,19);session.state=newConversation(randomUUID());
+    session.conversations=session.conversations.slice(0,19);session.state=newConversation(randomUUID(),{humanImperfection:Math.random()<0.02});
     send(200,{state:session.state,conversations:conversationList(session)});return;
    }
    if(path==='/api/switch'){
