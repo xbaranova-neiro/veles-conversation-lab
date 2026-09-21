@@ -136,6 +136,7 @@ function next(s,kind='details'){
 }
 export function turn(old, raw, semantic=null) {
   const s=structuredClone(old), before=structuredClone(old.facts), t=norm(raw);
+  const firstAssistant=!old.messages.some(message=>message.role==='assistant');
   s.style??={humanImperfection:false,imperfectionUsed:false};
   s.revision++;s.messages.push({role:'user',text:raw,at:new Date().toISOString()});
   extract(s,raw);
@@ -203,6 +204,7 @@ export function turn(old, raw, semantic=null) {
   let replySource='rule';
   if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
+  if(reply&&firstAssistant&&!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply)&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone'))reply='Добрый день! '+reply;
   if(reply&&s.style.humanImperfection&&!s.style.imperfectionUsed){const imperfect=addHumanImperfection(reply,s.id);if(imperfect!==reply){reply=imperfect;s.style.imperfectionUsed=true;}}
   if(reply)s.messages.push({role:'assistant',text:reply,at:new Date().toISOString(),source:replySource});
   s.sourceIds=source;s.cards=cards;
@@ -211,7 +213,7 @@ export function turn(old, raw, semantic=null) {
 }
 export function validReply(reply,s,fallback){
   if(typeof reply!=='string'||reply.length>300||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
-  if(/без спешки|не торопитесь|спокойно сориент|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
+  if(/без спешки|не торопитесь|спокойно сориент|(?:грубая цена|цена грубая|грубый расч[её]т)|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;
