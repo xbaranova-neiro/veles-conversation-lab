@@ -1,0 +1,25 @@
+[Unit]
+Description=Veles Conversation Lab
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=veles-chat
+Group=veles-chat
+WorkingDirectory=/opt/veles-conversation-lab
+EnvironmentFile=/etc/veles-conversation-lab.env
+Environment=VELES_HOST=127.0.0.1
+Environment=VELES_PORT=4183
+Environment=VELES_ARCHIVE_FILE=/var/lib/veles-conversation-lab/alexey-dialogs.json
+ExecStart=/usr/bin/node /opt/veles-conversation-lab/server.mjs
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/veles-conversation-lab
+
+[Install]
+WantedBy=multi-user.target
