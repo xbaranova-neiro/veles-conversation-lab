@@ -5,6 +5,13 @@ const escape=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>'
 const time=iso=>new Date(iso).toLocaleTimeString('ru-RU',{hour:'2-digit',minute:'2-digit'});
 const ownerSource=f=>['company','price','land','timing','quality'].includes(f.id);
 const displayLabels={active:'Знакомимся с клиентом',handoff:'В тестовой очереди менеджера',stopped:'Клиент отказался от контактов'};
+const wait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function humanReplyDelay(message,reply){
+ const reading=Math.min(1100,350+message.length*18);
+ const typing=Math.min(3000,650+reply.length*20);
+ const variation=350+Math.random()*750;
+ return Math.min(5200,Math.max(1500,reading+typing+variation));
+}
 async function api(path,data){const r=await fetch('/api/'+path,{method:data===undefined?'GET':'POST',headers:data===undefined?{}:{'Content-Type':'application/json','X-CSRF-Token':csrf},body:data===undefined?undefined:JSON.stringify(data)});let j;try{j=await r.json();}catch{throw new Error('Сервер недоступен. Проверьте, что прототип запущен.');}if(!r.ok)throw new Error(j.error||'Не удалось выполнить действие');return j;}
 let toastTimer;
 function toast(text){$('#toast').textContent=text;$('#toast').hidden=false;clearTimeout(toastTimer);toastTimer=setTimeout(()=>$('#toast').hidden=true,4500);}
@@ -33,10 +40,10 @@ function render(){
 async function openConversation(id){if(busy||id===state.id)return;try{const result=await api('switch',{id});state=result.state;conversations=result.conversations;scenario=null;step=0;render();}catch(e){toast(e.message);}}
 function renderConversations(){const list=$('#conversation-list');if(list){list.innerHTML=conversations.map(item=>`<button class="conversation-item ${item.active?'active':''}" data-conversation="${escape(item.id)}"><span>${escape(item.title)}</span><small>${item.messages} ${item.messages===1?'сообщение':'сообщений'}</small></button>`).join('');list.querySelectorAll('[data-conversation]').forEach(button=>button.onclick=()=>openConversation(button.dataset.conversation));}const select=$('#conversation-select');if(select){select.innerHTML=conversations.map(item=>`<option value="${escape(item.id)}" ${item.active?'selected':''}>${escape(item.title)} · ${item.messages}</option>`).join('');select.onchange=()=>openConversation(select.value);}}
 function renderMode(){const ai=settings.mode==='ai';$('#mode-badge').textContent=ai?'Живая нейросеть · '+settings.model:'Сценарный режим';$('#mode-badge').className='badge '+(ai?'green':'amber');$('#settings-open').hidden=!!settings.serverManagedKey;$('#mode-explainer').innerHTML=ai?'<span>◌</span><p><strong>Работает живая AI-модель.</strong> Свободные реплики формирует нейросеть; локальные правила только защищают факты, контактные данные и отказ от связи.</p>':'<span>◌</span><p><strong>Сейчас ответы формирует сценарный движок.</strong> Он проверяет логику, но не понимает произвольную речь как AI. Для свободного диалога подключите модель в настройках.</p>';$('#privacy-note').textContent=ai?'Диалог обрабатывает OpenAI. Карточка менеджера остаётся на локальном сервере.':'Диалог хранится в памяти локального сервера. В сценарном режиме никуда не отправляется.';}
-async function send(text){if(busy||!text.trim())return false;text=text.trim();error($('#message-error'),'');setBusy(true);
+async function send(text){if(busy||!text.trim())return false;text=text.trim();error($('#message-error'),'');setBusy(true);const startedAt=Date.now();
  const optimistic=document.createElement('div');optimistic.className='message user';optimistic.innerHTML=`<div class="bubble">${escape(text)}</div><div class="message-meta">Отправляется…</div>`;$('#messages').append(optimistic);
  const typing=document.createElement('div');typing.className='typing';typing.setAttribute('aria-label','Помощник готовит ответ');typing.innerHTML='<i></i><i></i><i></i>';$('#messages').append(typing);$('#messages').scrollTop=$('#messages').scrollHeight;
- try{const result=await api('message',{text,revision:state.revision});state=result.state;conversations=result.conversations;$('#message-input').value='';$('#char-count').textContent='0 / 2000';render();return true;}
+ try{const result=await api('message',{text,revision:state.revision});const reply=[...result.state.messages].reverse().find(message=>message.role==='assistant')?.text||'';const remaining=humanReplyDelay(text,reply)-(Date.now()-startedAt);if(remaining>0)await wait(remaining);state=result.state;conversations=result.conversations;$('#message-input').value='';$('#char-count').textContent='0 / 2000';render();return true;}
  catch(e){optimistic.remove();typing.remove();error($('#message-error'),e.message);return false;}
  finally{setBusy(false);typing.remove();$('#message-input').focus();}}
 $('#composer').onsubmit=async e=>{e.preventDefault();await send($('#message-input').value);};
