@@ -28,3 +28,11 @@ test('AI adapter: проверенный формат Responses API и разб�
 test('AI adapter: ключ не попадает в ошибки 401',async()=>{await assert.rejects(()=>generate(newConversation(),'x',{apiKey:'secret',model:'test'},async()=>({ok:false,status:401})),/Ключ не принят/);});
 test('AI adapter: повреждённый JSON отклоняется',async()=>{await assert.rejects(()=>generate(newConversation(),'x',{apiKey:'secret',model:'test'},async()=>({ok:true,json:async()=>({output:[{content:[{type:'output_text',text:'<html>'}]}]})})),/неверном формате/);});
 test('AI adapter: незавершённый ответ отклоняется',async()=>{await assert.rejects(()=>generate(newConversation(),'x',{apiKey:'secret',model:'test'},async()=>({ok:true,json:async()=>({status:'incomplete'})})),/не закончила/);});
+test('HTTP: новый чат сохраняет предыдущий и позволяет вернуться',async t=>{
+ const server=createApp();await new Promise(r=>server.listen(0,'127.0.0.1',r));t.after(()=>new Promise(r=>server.close(r)));const base='http://127.0.0.1:'+server.address().port;
+ const boot=await fetch(base+'/api/bootstrap');const cookie=boot.headers.get('set-cookie').split(';')[0];const first=await boot.json();const headers={'Content-Type':'application/json',Cookie:cookie,'X-CSRF-Token':first.csrf,Origin:base};
+ const post=(path,data)=>fetch(base+'/api/'+path,{method:'POST',headers,body:JSON.stringify(data)});
+ const answered=await(await post('message',{text:'Первый тестовый клиент',revision:0})).json();const oldId=answered.state.id;
+ const created=await(await post('new',{})).json();assert.equal(created.state.messages.length,0);assert.equal(created.conversations.length,2);assert.ok(created.conversations.some(item=>item.id===oldId&&!item.active));
+ const restored=await(await post('switch',{id:oldId})).json();assert.equal(restored.state.id,oldId);assert.equal(restored.state.messages[0].text,'Первый тестовый клиент');assert.ok(restored.conversations.find(item=>item.id===oldId).active);
+});

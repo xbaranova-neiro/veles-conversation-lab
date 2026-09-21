@@ -8,10 +8,15 @@ import {runChecks} from './checks.mjs';
 const root=new URL('./public/',import.meta.url);
 const files=new Map([['/','index.html'],['/app.mjs','app.mjs'],['/style.css','style.css'],['/knowledge.mjs','knowledge.mjs']]);
 const types={html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'};
+const conversationTitle=state=>{
+ const first=state.messages.find(message=>message.role==='user')?.text?.trim();
+ return first?(first.length>38?first.slice(0,38)+'…':first):'Новый диалог';
+};
+const conversationList=session=>[session.state,...session.conversations].map(state=>({id:state.id,title:conversationTitle(state),status:state.status,messages:state.messages.filter(message=>message.role==='user').length,active:state.id===session.state.id}));
 export function createApp(){
  const sessions=new Map();
  const serverKey=process.env.OPENAI_API_KEY?.trim()||'';
- const serverModel=process.env.OPENAI_MODEL?.trim()||'gpt-6-astra';
+ const serverModel=process.env.OPENAI_MODEL?.trim()||'gpt-5.6-luna';
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -30,10 +35,10 @@ export function createApp(){
    for(const [key,v] of sessions)if(Date.now()-v.touched>8*60*60*1000)sessions.delete(key);
    if(req.method==='GET'&&path==='/api/bootstrap'){
     if(!session){if(sessions.size>=100){send(503,{error:'Слишком много тестовых сессий.'});return;}
-     const sid=randomUUID();session={csrf:randomBytes(24).toString('hex'),state:newConversation(randomUUID()),settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
+     const sid=randomUUID();session={csrf:randomBytes(24).toString('hex'),state:newConversation(randomUUID()),conversations:[],settings:{mode:serverKey?'ai':'demo',model:serverModel,apiKey:serverKey},touched:Date.now(),busy:false};sessions.set(sid,session);
      res.setHeader('Set-Cookie',`veles_session=${sid}; HttpOnly; SameSite=Strict; Path=/; Max-Age=28800${protocol==='https'?'; Secure':''}`);
     }
-    session.touched=Date.now();send(200,{csrf:session.csrf,state:session.state,settings:{mode:session.settings.mode,model:session.settings.model,hasKey:!!session.settings.apiKey,serverManagedKey:!!serverKey}});return;
+    session.touched=Date.now();send(200,{csrf:session.csrf,state:session.state,conversations:conversationList(session),settings:{mode:session.settings.mode,model:session.settings.model,hasKey:!!session.settings.apiKey,serverManagedKey:!!serverKey}});return;
    }
    if(!session||req.headers['x-csrf-token']!==session.csrf){send(403,{error:'Сессия истекла. Обновите страницу.'});return;}
    if(req.method!=='POST'){send(405,{error:'Метод не поддерживается'});return;}
@@ -42,7 +47,18 @@ export function createApp(){
    let data;try{data=JSON.parse(body||'{}');}catch{send(400,{error:'Неверный JSON'});return;}
    session.touched=Date.now();
    if(session.busy){send(409,{error:'Дождитесь ответа на предыдущее сообщение.'});return;}
-   if(path==='/api/new'){session.state=newConversation(randomUUID());send(200,{state:session.state});return;}
+   if(path==='/api/new'){
+    if(session.state.messages.length)session.conversations.unshift(session.state);
+    session.conversations=session.conversations.slice(0,19);session.state=newConversation(randomUUID());
+    send(200,{state:session.state,conversations:conversationList(session)});return;
+   }
+   if(path==='/api/switch'){
+    const index=session.conversations.findIndex(conversation=>conversation.id===data.id);
+    if(index<0){send(404,{error:'Диалог не найден или уже завершён.'});return;}
+    const current=session.state;session.state=session.conversations.splice(index,1)[0];
+    if(current.messages.length)session.conversations.unshift(current);
+    send(200,{state:session.state,conversations:conversationList(session)});return;
+   }
    if(path==='/api/settings'){
     if(!['demo','ai'].includes(data.mode)){send(400,{error:'Выберите режим'});return;}
     const key=data.clearKey?'':typeof data.apiKey==='string'&&data.apiKey.trim()?data.apiKey.trim():session.settings.apiKey;
@@ -61,7 +77,7 @@ export function createApp(){
      let semantic=null;const localPlan=turn(session.state,data.text);
      if(session.settings.mode==='ai'&&!localPlan.locked)semantic=await generate(session.state,data.text,session.settings);
      const result=turn(session.state,data.text,semantic);session.state=result.state;
-     send(200,{...result,mode:session.settings.mode,usedModel:!!semantic});
+     send(200,{...result,conversations:conversationList(session),mode:session.settings.mode,usedModel:!!semantic});
     }finally{session.busy=false;}return;
    }
    send(404,{error:'Метод не найден'});
