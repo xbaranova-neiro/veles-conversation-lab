@@ -88,7 +88,7 @@ export function detect(raw) {
   if(/срок|долго|когда.*готов|100 дней/.test(t))return 'timing';
   if(/(?:сво[йиему]+|мо[йему]+|измен|планиров|доработ|индивидуальн).*проект|проект.*(?:сво|измен)|планировк/.test(t))return 'project';
   if(/построенн|работы|экскурс|вживую|готовые дома|фотограф/.test(t))return 'portfolio';
-  if(/покаж|пример|вариант|подбер|подбор|каталог/.test(t))return 'examples';
+  if(/покаж|пример(?!н)|вариант|подбер|подбор|каталог/.test(t))return 'examples';
   if(/(?:строите|работаете|стройте).*(?:в |калуг|моск|тул)|(?:калуг|моск|тул).*строите/.test(t))return 'region';
   if(/участ/.test(t))return 'land';
   if(/^(?:спасибо|благодарю|понятно|ок|хорошо)[.!\s]*$/.test(t))return 'thanks';
@@ -105,9 +105,9 @@ function ask(s,field,text){if(s.asked.includes(field))return '';s.asked.push(fie
 function requestContact(s,kind='details'){
   if(s.facts.phone||s.noCalls||s.phoneRefused)return '';
   const lines={
-    calculation:'Могу посчитать точнее. Давайте созвонимся на несколько минут — оставите номер телефона?',
-    budget:'Попробуем уложиться в эту сумму. Давайте созвонимся на несколько минут — оставите номер телефона?',
-    details:'Тут лучше коротко созвониться и пройтись по деталям. Оставите номер телефона?'
+    calculation:'Давайте сделаем расчёт под ваш дом и обсудим его по телефону. Можно ваш номер?',
+    budget:'Давайте посмотрим, как уложиться в ваш бюджет. Можно ваш номер телефона?',
+    details:'Давайте коротко созвонимся и обсудим детали. Можно ваш номер?'
   };
   return ask(s,'phone',lines[kind]||lines.details);
 }
@@ -122,7 +122,11 @@ function knownPlan(s){
   ].filter(Boolean).length;
 }
 function next(s,kind='details'){
-  if(knownPlan(s)>=3){
+  const hasPlan=knownPlan(s);
+  const hasAnsweredQualification=s.asked.some(field=>['area','purpose','timing','region','budget_payment','wishes'].includes(field));
+  // One answered qualification question, or two details supplied up front, is
+  // enough for a warm hand-off. Do not turn the conversation into a survey.
+  if(hasPlan>=2||(hasPlan>=1&&hasAnsweredQualification)){
     if(s.noCalls||s.phoneRefused){
       if(!s.facts.budget&&!s.facts.payment){const q=ask(s,'budget_payment','На какой бюджет рассчитываете?');if(q)return q;}
       if(!s.facts.wishes&&!s.facts.bedrooms){const q=ask(s,'wishes','Что точно хотите в доме: сколько спален, нужна ли терраса или кабинет?');if(q)return q;}
@@ -232,7 +236,10 @@ export function validReply(reply,s,fallback){
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;
   if(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i.test(reply)&&!fallback.toLowerCase().includes(reply.toLowerCase().match(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i)?.[0]||'§'))return false;
   if(/(?:миллион|тысяч|рубл|₽|бесплатно всем|одобрим|без отказа)/i.test(reply)&&!/(?:миллион|тысяч|рубл|₽)/i.test(fallback))return false;
-  const contactAsk=/оставьте.*(?:номер|телефон)|дайте.*номер|можно.*номер|подскажите.*номер/i;
+  const contactAsk=/(?:остав(?:ьте|ите)|напишите|дайте|подскажите).*(?:номер|телефон)|можно\s+(?:ваш\s+)?(?:номер|телефон)|(?:номер|телефон).*(?:остав(?:ьте|ите)|напишите)/i;
+  // If deterministic funnel logic has reached the contact step, the model may
+  // rephrase that request but must not replace it with another qualification.
+  if(contactAsk.test(fallback)&&!contactAsk.test(reply))return false;
   if((s.noCalls||s.phoneRefused||s.asked.includes('phone'))&&contactAsk.test(reply)&&!contactAsk.test(fallback))return false;
   const allowed=new Set((fallback+' '+Object.values(s.facts).map(f=>f.value).join(' ')).match(/\d+/g)||[]);
   if((reply.match(/\d+/g)||[]).some(n=>!allowed.has(n)))return false;
