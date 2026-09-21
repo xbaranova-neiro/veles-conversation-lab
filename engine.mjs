@@ -157,6 +157,8 @@ export function turn(old, raw, semantic=null) {
     event(s,'Отказ: тестовая передача и звонки отменены');reply=old.status==='stopped'?'':'Понял, больше беспокоить не будем.';
   }else if(old.status==='stopped'){
     s.status='stopped';locked=true;reply='';event(s,'Ответ отключён после отказа. Для новой проверки начните новый диалог.');
+  }else if(firstAssistant&&/^\s*(?:але|алло|ау|вы\s+тут|есть\s+кто)\s*[?!.]*\s*$/.test(t)){
+    locked=true;reply='Добрый день! Меня зовут Иван. Какой у вас вопрос?';
   }else if(intent==='no_calls'||intent==='no_phone'){
     s.noCalls=true;s.phoneRefused=intent==='no_phone'||s.phoneRefused;s.channel='Чат Авито';locked=true;
     reply=(intent==='no_calls'?'Хорошо, без звонков — продолжим здесь. ':'Хорошо, продолжим здесь. ')+next(s);
@@ -206,7 +208,10 @@ export function turn(old, raw, semantic=null) {
   let replySource='rule';
   if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
-  if(reply&&firstAssistant&&!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply)&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone'))reply='Добрый день! '+reply;
+  if(reply&&firstAssistant&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone')){
+    if(!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply))reply='Добрый день! Меня зовут Иван. '+reply;
+    else if(!/(?:меня зовут\s+иван|я\s+иван)/i.test(reply))reply=reply.replace(/^((?:добрый\s+(?:день|вечер)|здравствуйте|привет)[!.]?)/i,'$1 Меня зовут Иван.');
+  }
   if(reply&&s.style.humanImperfection&&!s.style.imperfectionUsed){const imperfect=addHumanImperfection(reply,s.id);if(imperfect!==reply){reply=imperfect;s.style.imperfectionUsed=true;}}
   if(reply)s.messages.push({role:'assistant',text:reply,at:new Date().toISOString(),source:replySource});
   s.sourceIds=source;s.cards=cards;
