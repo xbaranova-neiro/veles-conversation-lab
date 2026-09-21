@@ -200,7 +200,7 @@ export function turn(old, raw, semantic=null) {
   return {state:s,reply,locked,sourceIds:source};
 }
 export function validReply(reply,s,fallback){
-  if(typeof reply!=='string'||reply.length>450||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
+  if(typeof reply!=='string'||reply.length>300||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;

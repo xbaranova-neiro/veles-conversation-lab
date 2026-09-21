@@ -16,7 +16,7 @@ const conversationList=session=>[session.state,...session.conversations].map(sta
 export function createApp(){
  const sessions=new Map();
  const serverKey=process.env.OPENAI_API_KEY?.trim()||'';
- const serverModel=process.env.OPENAI_MODEL?.trim()||'gpt-5.6-luna';
+ const serverModel=process.env.OPENAI_MODEL?.trim()||'gpt-5.5';
  const server=http.createServer(async(req,res)=>{
   res.setHeader('Cache-Control','no-store');res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','no-referrer');
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
