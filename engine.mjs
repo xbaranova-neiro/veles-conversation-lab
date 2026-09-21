@@ -103,9 +103,9 @@ function ask(s,field,text){if(s.asked.includes(field))return '';s.asked.push(fie
 function requestContact(s,kind='details'){
   if(s.facts.phone||s.noCalls||s.phoneRefused)return '';
   const lines={
-    calculation:'Давайте подготовим расчёт именно под ваши пожелания. Оставьте, пожалуйста, номер телефона — созвонимся и спокойно всё обсудим?',
-    budget:'Постараемся подобрать решение под ваш бюджет. Давайте коротко созвонимся — оставьте, пожалуйста, номер телефона?',
-    details:'Чтобы учесть все пожелания, лучше коротко созвониться. Оставьте, пожалуйста, номер телефона?'
+    calculation:'Могу посчитать точнее. Давайте созвонимся на несколько минут — оставите номер телефона?',
+    budget:'Попробуем уложиться в эту сумму. Давайте созвонимся на несколько минут — оставите номер телефона?',
+    details:'Тут лучше коротко созвониться и пройтись по деталям. Оставите номер телефона?'
   };
   return ask(s,'phone',lines[kind]||lines.details);
 }
@@ -122,16 +122,16 @@ function knownPlan(s){
 function next(s,kind='details'){
   if(knownPlan(s)>=3){
     if(s.noCalls||s.phoneRefused){
-      if(!s.facts.budget&&!s.facts.payment){const q=ask(s,'budget_payment','На какой бюджет ориентируетесь и как планируете оплачивать — свои средства, ипотека или рассрочка?');if(q)return q;}
-      if(!s.facts.wishes&&!s.facts.bedrooms){const q=ask(s,'wishes','Что для вас особенно важно в доме — например, сколько нужно спален, нужна ли терраса или кабинет?');if(q)return q;}
-      return 'Хорошо, можем дальше разобрать любые вопросы по проекту здесь.';
+      if(!s.facts.budget&&!s.facts.payment){const q=ask(s,'budget_payment','На какой бюджет рассчитываете?');if(q)return q;}
+      if(!s.facts.wishes&&!s.facts.bedrooms){const q=ask(s,'wishes','Что точно хотите в доме: сколько спален, нужна ли терраса или кабинет?');if(q)return q;}
+      return 'Хорошо. Что ещё хотите уточнить?';
     }
     return requestContact(s,kind);
   }
-  if(!s.facts.area){const q=ask(s,'area','Расскажите, какой дом планируете — примерно какая площадь и этажность?');if(q)return q;}
-  if(!s.facts.purpose){const q=ask(s,'purpose','Дом планируете для постоянного проживания или для дачи?');if(q)return q;}
-  if(!s.facts.timing){const q=ask(s,'timing','Когда хотели бы начать строительство?');if(q)return q;}
-  if(!s.facts.region){const q=ask(s,'region','В каком районе планируете строить?');if(q)return q;}
+  if(!s.facts.area){const q=ask(s,'area','По площади примерно сколько хотите и в один этаж или два?');if(q)return q;}
+  if(!s.facts.purpose){const q=ask(s,'purpose','Дом для себя жить или как дачу?');if(q)return q;}
+  if(!s.facts.timing){const q=ask(s,'timing','Когда хотите начать?');if(q)return q;}
+  if(!s.facts.region){const q=ask(s,'region','А строить где хотите?');if(q)return q;}
   return requestContact(s,kind);
 }
 export function turn(old, raw, semantic=null) {
@@ -167,36 +167,36 @@ export function turn(old, raw, semantic=null) {
     reply='Конечно. '+requestContact(s,'details');
   }else{
     switch(intent){
-      case'greeting':reply='Добрый день! Меня зовут Иван, компания «Велес». Расскажите, какой дом планируете построить?';break;
+      case'greeting':reply='Добрый день! Я Иван. Что по дому хотите узнать?';break;
       case'identity':reply='Я виртуальный помощник компании «Велес», в тестовом чате меня зовут Иван. Помогу разобраться с первыми вопросами.';break;
-      case'price_conflict':reply='Понимаю ваш вопрос. Для ориентира: тёплый контур обычно считают в диапазоне 60–80 тыс. ₽/м², предчистовую отделку — от 80 тыс. ₽/м². Итог зависит от проекта и участка. '+next(s,'calculation');source=['price'];break;
-      case'estimate':reply=(s.facts.area?`Да, рассчитаем дом ${s.facts.area.value} под ваши пожелания.`:'Да, сделаем индивидуальный расчёт.')+' '+next(s,'calculation');source=['price'];break;
-      case'price':reply=(/умнож|за метр/.test(t)?'Цена за квадрат даёт только ориентир: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².':s.facts.area?`По дому ${s.facts.area.value} ориентир зависит от планировки и участка: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².`:'Для ориентира: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². Точнее можно сказать после параметров дома и участка.')+' '+next(s,'calculation');source=['price'];break;
-      case'packages':reply='Состав работ подберём под ваши пожелания и бюджет. '+next(s,'calculation');source=['packages'];break;
+      case'price_conflict':reply='Цена может отличаться из-за проекта и участка. По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². '+next(s,'calculation');source=['price'];break;
+      case'estimate':reply=(s.facts.area?`Да, посчитаем дом ${s.facts.area.value}.`:'Да, можем посчитать.')+' '+next(s,'calculation');source=['price'];break;
+      case'price':reply=(/умнож|за метр/.test(t)?'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².':s.facts.area?`Для дома ${s.facts.area.value} всё зависит от планировки и участка. Тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².`:'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². Точнее скажу, когда пойму сам дом и участок.')+' '+next(s,'calculation');source=['price'];break;
+      case'packages':reply='Тут всё зависит от того, какой дом вам нужен и какой бюджет. '+next(s,'calculation');source=['packages'];break;
       case'windows':reply='Окна и двери обязательно учтём в расчёте под ваш проект. '+next(s,'calculation');source=['packages'];break;
       case'warm':reply='Да, можем рассчитать тёплый контур под ваш проект. '+next(s,'calculation');source=['packages'];break;
-      case'finish':reply='Хорошо, учтём дом с отделкой и все пожелания по готовности. '+next(s,'calculation');source=['packages'];break;
+      case'finish':reply='Понял, нужен дом с отделкой. '+next(s,'calculation');source=['packages'];break;
       case'utilities':reply='Уточню, что войдёт в расчёт по коммуникациям. Что уже есть на участке?';source=['packages'];break;
       case'land':reply=/входит|вместе|включен|цен/.test(t)?'Участок в стоимость дома не входит, но с подбором поможем.':s.facts.land?.value==='Есть'?'Отлично, участок уже есть.':'Хорошо, поможем подобрать участок.';reply+=' '+next(s);source=['land'];break;
-      case'region':reply='Да, строим в Тульской, Московской и Калужской областях. '+(s.facts.region?next(s):ask(s,'region','В каком населённом пункте планируете дом?'));source=['company'];break;
-      case'project':reply='Да, можно обсудить свой проект или изменить планировку. Что хотите поменять?';source=['project'];break;
-      case'examples':if(!s.facts.purpose){reply='Дом нужен для постоянного проживания или для дачи?';s.asked.push('purpose');}else{cards=s.facts.purpose.value==='Сезонное проживание'?['237']:s.facts.area&&parseInt(s.facts.area.value)>=120?['93']:[];reply=cards.length?'Вот проект, который можно взять за основу. Планировку и комплектацию обсудим под ваши пожелания.':'Подберём проект для постоянного проживания в вашей площади. Сколько спален вам нужно?';}source=['project'];break;
+      case'region':reply='Да, строим в Тульской, Московской и Калужской областях. '+(s.facts.region?next(s):ask(s,'region','В каком городе или районе хотите строить?'));source=['company'];break;
+      case'project':reply='Да, можем взять ваш проект или поменять планировку. Что хотите изменить?';source=['project'];break;
+      case'examples':if(!s.facts.purpose){reply='Дом для себя жить или как дачу?';s.asked.push('purpose');}else{cards=s.facts.purpose.value==='Сезонное проживание'?['237']:s.facts.area&&parseInt(s.facts.area.value)>=120?['93']:[];reply=cards.length?'Вот этот проект можно взять за основу. Планировку потом подгоним под вас.':'Подберём. Сколько спален нужно?';}source=['project'];break;
       case'portfolio':reply='Да, покажу наши построенные дома. Если захотите посмотреть вживую, договоримся о просмотре.';source=['portfolio'];break;
       case'foundation':reply='Фундамент подбирает инженер по проекту и грунтам участка. Есть результаты геологии?';source=['foundation'];break;
       case'timing':reply='Срок зависит от проекта и объёма работ, а даты этапов закрепляем в договоре. '+next(s);source=['timing'];break;
       case'winter':reply='Да, строим круглый год. '+next(s);source=['timing'];break;
       case'warranty':reply='На дом из газобетона даём гарантию 5 лет, условия закрепляем в договоре. '+next(s);source=['timing'];break;
       case'quality':reply='После подписания договора создаём общий чат по стройке и присылаем подробные фото- и видеоотчёты, в том числе по скрытым работам. Камеры сейчас не ставим: на объектах часто нестабильный мобильный интернет.';source=['quality'];break;
-      case'mortgage':reply='Да, помогаем оформить ипотеку и подобрать подходящие условия. '+next(s);source=['mortgage'];break;
-      case'approval':reply='Окончательное решение принимает банк. Мы поможем разобраться с условиями и подготовить заявку.';source=['mortgage'];break;
+      case'mortgage':reply='Да, с ипотекой помогаем. '+next(s);source=['mortgage'];break;
+      case'approval':reply='Окончательное решение принимает банк. Мы поможем собрать заявку и разобраться с условиями.';source=['mortgage'];break;
       case'escrow':reply='Да, работаем через эскроу-счёт. Расскажем, как пройдёт оплата по вашему договору.';source=['mortgage'];break;
       case'installment':reply='Да, рассрочка есть. Условия зависят от проекта и способа оплаты. '+next(s,'details');source=['installment'];break;
-      case'free_project':reply='Готовый проект можем использовать без отдельной разработки, если он полностью подходит участку. Если нужна доработка или индивидуальный проект, объём и стоимость обсудим отдельно.';source=['project'];break;
+      case'free_project':reply='Если готовый проект подходит участку, отдельно за разработку платить не нужно. Если надо что-то менять, тогда сначала оценим доработку.';source=['project'];break;
       case'office':reply='Тула, ул. Вяземская, 18Л, офис 205, 2-й этаж. Работаем пн–пт 9:00–18:00 и сб 9:00–14:00.';source=['office'];break;
       case'company_phone':reply='Наш телефон: +7 (967) 555-24-44.';source=['office'];break;
-      case'expensive':reply=s.facts.budget?'Понимаю. Постараемся подобрать решение под ваш бюджет. '+next(s,'budget'):ask(s,'budget','Понимаю. На какой бюджет ориентируетесь? Постараемся подобрать подходящее решение.');break;
+      case'expensive':reply=s.facts.budget?'Давайте посчитаем, что можно сделать в эту сумму. '+next(s,'budget'):ask(s,'budget','Давайте сначала посчитаем ваш вариант. На какой бюджет рассчитываете?');break;
       case'thanks':reply='Пожалуйста!';break;
-      default:if(added.length){reply=(added.includes('region')?'Понял, этот район учту.':added.includes('area')?`Хорошо, ориентируемся на ${s.facts.area.value}.`:added.includes('purpose')?s.facts.purpose.value==='Постоянное проживание'?'Понял, дом для постоянного проживания.':'Понял, дом для сезонного проживания.':added.includes('timing')?'Хорошо, по срокам понял.':added.includes('budget')?'Понял, постараемся уложиться в ваш бюджет.':'Хорошо, учту это.')+' '+next(s,added.includes('budget')?'budget':'details');}else if(/^(?:да|нет|есть|нету)[.!\s]*$/.test(t)){reply='Уточните, пожалуйста, к чему относится ваш ответ?';}else{reply='Расскажите немного о ваших планах: какой дом хотите построить и когда планируете начинать?';}
+      default:if(added.length){reply=(added.includes('region')?'Понял.':added.includes('area')?`Хорошо, примерно ${s.facts.area.value}.`:added.includes('purpose')?s.facts.purpose.value==='Постоянное проживание'?'Понял, дом для себя.':'Понял, дом как дача.':added.includes('timing')?'Хорошо, по срокам понял.':added.includes('budget')?'Понял, попробуем уложиться.':'Хорошо.')+' '+next(s,added.includes('budget')?'budget':'details');}else if(/^(?:да|нет|есть|нету)[.!\s]*$/.test(t)){reply='Не понял, это про что?';}else{reply='Что по дому хотите узнать?';}
     }
   }
   // Replace only conversational text, never contact/stop/handoff decisions.
@@ -211,7 +211,7 @@ export function turn(old, raw, semantic=null) {
 }
 export function validReply(reply,s,fallback){
   if(typeof reply!=='string'||reply.length>300||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
-  if(/без спешки|не торопитесь|спокойно сориент/i.test(reply))return false;
+  if(/без спешки|не торопитесь|спокойно сориент|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;
