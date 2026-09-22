@@ -123,7 +123,7 @@ function knownPlan(s){
 }
 function next(s,kind='details'){
   const hasPlan=knownPlan(s);
-  const qualificationAsked=s.asked.filter(field=>['area','purpose','timing','region','budget_payment','wishes'].includes(field)).length;
+  const qualificationAsked=s.asked.filter(field=>['area','purpose','timing','region','land','budget_payment','wishes'].includes(field)).length;
   // Three useful details or three qualification questions are enough. After
   // that, move to the phone instead of continuing the questionnaire.
   if(hasPlan>=3||qualificationAsked>=3){
@@ -168,6 +168,10 @@ export function turn(old, raw, semantic=null) {
     locked=true;reply='Да, я тут.';
   }else if(intent==='just_browsing'){
     locked=true;reply='Хорошо. Может, у вас есть вопросы по дому или ипотеке? Спрашивайте.';
+  }else if(/(?:как|из)\s+(?:в\s+)?объявлен|(?:вариант|дом|такой\s+же).{0,30}(?:из|как|в)\s+объявлен/.test(t)){
+    locked=true;source=['project'];
+    const followUp=s.facts.land?next(s):ask(s,'land','Участок у вас уже есть?');
+    reply='Понял. Расчёт делаем индивидуально под ваш участок: сначала обсудим планировку и особенности участка, потом посчитаем стоимость.'+(followUp?' '+followUp:'');
   }else if(intent==='no_calls'||intent==='no_phone'){
     s.noCalls=true;s.phoneRefused=intent==='no_phone'||s.phoneRefused;s.channel='Чат Авито';locked=true;
     reply=(intent==='no_calls'?'Хорошо, без звонков — продолжим здесь. ':'Хорошо, продолжим здесь. ')+next(s);
@@ -232,6 +236,7 @@ export function validReply(reply,s,fallback){
   if(s.messages.some(message=>message.role==='assistant')&&/(?:здравствуйте|добрый\s+(?:день|вечер)|меня зовут\s+иван|я\s+иван)/i.test(reply))return false;
   if(/без спешки|не торопитесь|спокойно сориент|(?:грубая цена|цена грубая|грубый расч[её]т)|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
+  if(/(?:пришл|отправ|скин).*(?:скрин|скриншот|ссылк|фото.*объявлен)|(?:скрин|скриншот|ссылк).*(?:объявлен|пришл|отправ|скин)/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;
   if(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i.test(reply)&&!fallback.toLowerCase().includes(reply.toLowerCase().match(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i)?.[0]||'§'))return false;
