@@ -123,10 +123,10 @@ function knownPlan(s){
 }
 function next(s,kind='details'){
   const hasPlan=knownPlan(s);
-  const hasAnsweredQualification=s.asked.some(field=>['area','purpose','timing','region','budget_payment','wishes'].includes(field));
-  // One answered qualification question, or two details supplied up front, is
-  // enough for a warm hand-off. Do not turn the conversation into a survey.
-  if(hasPlan>=2||(hasPlan>=1&&hasAnsweredQualification)){
+  const qualificationAsked=s.asked.filter(field=>['area','purpose','timing','region','budget_payment','wishes'].includes(field)).length;
+  // Three useful details or three qualification questions are enough. After
+  // that, move to the phone instead of continuing the questionnaire.
+  if(hasPlan>=3||qualificationAsked>=3){
     if(s.noCalls||s.phoneRefused){
       if(!s.facts.budget&&!s.facts.payment){const q=ask(s,'budget_payment','На какой бюджет рассчитываете?');if(q)return q;}
       if(!s.facts.wishes&&!s.facts.bedrooms){const q=ask(s,'wishes','Что точно хотите в доме: сколько спален, нужна ли терраса или кабинет?');if(q)return q;}
