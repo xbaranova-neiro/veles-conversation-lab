@@ -1,5 +1,5 @@
 import { fieldLabels } from './public/knowledge.mjs';
-export const INTENTS = ['greeting','just_browsing','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
+export const INTENTS = ['greeting','just_browsing','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','start','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
 const norm = t => t.toLowerCase().replaceAll('ё','е').replace(/кв\.?\s*м\.?/g,'м²').replace(/расч[еи]т|расчет/g,'расчет');
 export function newConversation(id='test',{humanImperfection=false}={}) {
   return {id, messages:[], facts:{}, asked:[], status:'active', channel:'Не выбран', noCalls:false, phoneRefused:false, handoff:null, events:[], sourceIds:[], intent:'greeting', revision:0, style:{humanImperfection,imperfectionUsed:false}};
@@ -19,6 +19,7 @@ export function extract(s, raw) {
   if(number) put(s,'phone','+7'+number[0].replace(/\D/g,'').slice(1),number[0]);
   const name=raw.match(/(?:меня зовут|мое имя|моё имя|зовут меня)\s+([А-Яа-яЁё-]{2,30})/i);
   if(name) put(s,'name',name[1][0].toUpperCase()+name[1].slice(1),name[0]);
+  else if(s.asked.at(-1)==='name'&&/^\s*[А-ЯЁ][а-яё-]{1,29}\s*[.!]?\s*$/.test(raw)){const value=raw.trim().replace(/[.!]$/,'');put(s,'name',value,value);}
   const target=/(?:нуж|хоч|интерес|планир|рассч|посчит|на\s+\d|дом\s+метров)/.test(t);
   const area=raw.match(/(?<!\d)(\d{2,3}(?:\s*[-–]\s*\d{2,3})?)\s*(?:м[²2]|кв\.?\s*м\.?|квадрат(?:ов|а)?|метр(?:ов|а)?)(?!\w)/i) || raw.match(/метров\s+(\d{2,3})/i);
   if(area && (!/объявлен|сайт/.test(t) || target)) put(s,'area',area[1].replace(/\s/g,'')+' м²',area[0]);
@@ -51,6 +52,7 @@ export function extract(s, raw) {
   const beds=t.match(/(\d)\s*спальн/);if(beds)put(s,'bedrooms',beds[1],beds[0]);
   const timing=t.match(/(?:строить|начать|начинать|начинаем|начало|строительство)\s+(?:хотим\s+)?(?:в\s+|на\s+)?(весн[а-я]*|лет[а-я]*|осен[а-я]*|зим[а-я]*|20\d\d(?:\s*году)?)/);
   if(timing){const season=/^весн/.test(timing[1])?'весной':/^лет/.test(timing[1])?'летом':/^осен/.test(timing[1])?'осенью':/^зим/.test(timing[1])?'зимой':timing[1];put(s,'timing',season,timing[0]);}
+  else if(/(?:строить|начать|начинать|строительство|планах).{0,25}(?:через год|в следующем году|на следующий год)/.test(t))put(s,'timing','примерно через год',raw);
   const wishes=[];
   for(const [rx,label] of [[/террас/,'терраса'],[/гараж/,'гараж'],[/котельн/,'котельная'],[/панорамн.*окн/,'панорамные окна'],[/второй свет/,'второй свет'],[/бан[яю]/,'баня'],[/кабинет/,'кабинет']])if(rx.test(t))wishes.push(label);
   if(wishes.length)put(s,'wishes',wishes.join(', '),raw);
@@ -74,7 +76,7 @@ export function detect(raw) {
   if(/окн|двер/.test(t))return 'windows';
   if(/тепл.*контур/.test(t)&&/(?:это|входит|что|включ|сколько|цен|сто)/.test(t))return 'warm';
   if(/заех|заезж|чистов|отделк|под ключ.*(?:что|знач)/.test(t))return 'finish';
-  if(/что.*(?:вход|включ)|комплектац.*(?:каки|есть)|чем.*(?:стандарт|комфорт)|(?:стандарт|комфорт|лайтбокс).*(?:что|вход)/.test(t))return 'packages';
+  if(/что.*(?:вход|включ)|комплектац.*(?:каки|есть)|чем.*(?:стандарт|комфорт)|(?:стандарт|комфорт|лайтбокс).*(?:что|вход)|базов.*(?:стоим|цен)|(?:стоим|цен).*базов/.test(t))return 'packages';
   if(/рассчит|расчит|расчет|посчит|смет|аналогичн|та же комплект/.test(t))return 'estimate';
   if(/сколько|цен|стоит|стоим|за метр|умнож/.test(t))return 'price';
   if(/дорого|не по карману/.test(t))return 'expensive';
@@ -86,8 +88,9 @@ export function detect(raw) {
   if(/гаранти/.test(t))return 'warranty';
   if(/камер|фотоотчет|технадзор|контрол.*стро|сертификат/.test(t))return 'quality';
   if(/срок|долго|когда.*готов|100 дней/.test(t))return 'timing';
+  if(/какая информация.*нуж|что (?:нужно|надо).*(?:начать|работ|договор)|как (?:начать|приступить|оформить)/.test(t))return 'start';
   if(/(?:сво[йиему]+|мо[йему]+|измен|планиров|доработ|индивидуальн).*проект|проект.*(?:сво|измен)|планировк/.test(t))return 'project';
-  if(/построенн|работы|экскурс|вживую|готовые дома|фотограф/.test(t))return 'portfolio';
+  if(/построенн|работы|экскурс|вживую|готовые дома|фотограф|где.*проект|посмотреть.*проект/.test(t))return 'portfolio';
   if(/покаж|пример(?!н)|вариант|подбер|подбор|каталог/.test(t))return 'examples';
   if(/(?:строите|работаете|стройте).*(?:в |калуг|моск|тул)|(?:калуг|моск|тул).*строите/.test(t))return 'region';
   if(/участ/.test(t))return 'land';
@@ -143,6 +146,7 @@ function next(s,kind='details'){
 export function turn(old, raw, semantic=null) {
   const s=structuredClone(old), before=structuredClone(old.facts), t=norm(raw);
   const firstAssistant=!old.messages.some(message=>message.role==='assistant');
+  const askedBefore=s.asked.length;
   s.style??={humanImperfection:false,imperfectionUsed:false};
   s.revision++;s.messages.push({role:'user',text:raw,at:new Date().toISOString()});
   extract(s,raw);
@@ -163,9 +167,16 @@ export function turn(old, raw, semantic=null) {
   }else if(old.status==='stopped'){
     s.status='stopped';locked=true;reply='';event(s,'Ответ отключён после отказа. Для новой проверки начните новый диалог.');
   }else if(firstAssistant&&/^\s*(?:але|алло|ау|вы\s+тут|есть\s+кто)\s*[?!.]*\s*$/.test(t)){
-    locked=true;reply='Добрый день! Меня зовут Иван. Какой у вас вопрос?';
+    locked=true;reply='Добрый день! Меня зовут Иван. Как могу к вам обращаться?';ask(s,'name','');
   }else if(!firstAssistant&&/^\s*(?:але|алло|ау|вы\s+тут|есть\s+кто)\s*[?!.]*\s*$/.test(t)){
     locked=true;reply='Да, я тут.';
+  }else if(added.includes('name')&&old.asked.at(-1)==='name'){
+    locked=true;
+    const afterName=knownPlan(s)>=3||old.intent==='human'||old.intent==='start'?requestContact(s,'details')
+      :old.intent==='price'||old.intent==='price_conflict'||old.intent==='estimate'?ask(s,'area','По площади примерно сколько хотите и в один этаж или два?')
+      :old.intent==='greeting'?ask(s,'topic','Что хотели узнать?')
+      :s.facts.region?next(s):ask(s,'region','В каком районе планируете строить дом?');
+    reply=`${s.facts.name.value}, приятно познакомиться. ${afterName}`;
   }else if(intent==='just_browsing'){
     locked=true;reply='Хорошо. Может, у вас есть вопросы по дому или ипотеке? Спрашивайте.';
   }else if(/(?:как|из)\s+(?:в\s+)?объявлен|(?:вариант|дом|такой\s+же).{0,30}(?:из|как|в)\s+объявлен/.test(t)){
@@ -190,7 +201,7 @@ export function turn(old, raw, semantic=null) {
       case'price_conflict':reply='Цена может отличаться из-за проекта и участка. По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². '+next(s,'calculation');source=['price'];break;
       case'estimate':reply=(s.facts.area?`Да, посчитаем дом ${s.facts.area.value}.`:'Да, можем посчитать.')+' '+next(s,'calculation');source=['price'];break;
       case'price':reply=(/умнож|за метр/.test(t)?'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².':s.facts.area?`Для дома ${s.facts.area.value} всё зависит от планировки и участка. Тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².`:'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². Точнее скажу, когда пойму сам дом и участок.')+' '+next(s,'calculation');source=['price'];break;
-      case'packages':reply='Тут всё зависит от того, какой дом вам нужен и какой бюджет. '+next(s,'calculation');source=['packages'];break;
+      case'packages':reply=/базов/.test(t)?'Базовая комплектация — это коробка дома без окон и дверей. Дальше состав работ подбираем под ваш проект. '+next(s,'calculation'):'Тут всё зависит от того, какой дом вам нужен и какой бюджет. '+next(s,'calculation');source=['packages'];break;
       case'windows':reply='Окна и двери обязательно учтём в расчёте под ваш проект. '+next(s,'calculation');source=['packages'];break;
       case'warm':reply='Да, можем рассчитать тёплый контур под ваш проект. '+next(s,'calculation');source=['packages'];break;
       case'finish':reply='Понял, нужен дом с отделкой. '+next(s,'calculation');source=['packages'];break;
@@ -199,13 +210,14 @@ export function turn(old, raw, semantic=null) {
       case'region':reply='Да, строим в Тульской, Московской и Калужской областях. '+(s.facts.region?next(s):ask(s,'region','В каком городе или районе хотите строить?'));source=['company'];break;
       case'project':reply='Да, можем взять ваш проект или поменять планировку. Что хотите изменить?';source=['project'];break;
       case'examples':if(!s.facts.purpose){reply='Дом для себя жить или как дачу?';s.asked.push('purpose');}else{cards=s.facts.purpose.value==='Сезонное проживание'?['237']:s.facts.area&&parseInt(s.facts.area.value)>=120?['93']:[];reply=cards.length?'Вот этот проект можно взять за основу. Планировку потом подгоним под вас.':'Подберём. Сколько спален нужно?';}source=['project'];break;
-      case'portfolio':reply='Да, покажу наши построенные дома. Если захотите посмотреть вживую, договоримся о просмотре.';source=['portfolio'];break;
+      case'portfolio':reply=/готов.*(?:дом|в наличии)|(?:дом|дома).*в наличии/.test(t)?'Готовых домов в наличии нет, мы строим под заказ. Так можно выбрать планировку и контролировать материалы и этапы работ. '+next(s):'Проекты и построенные дома могу показать здесь. Если захотите посмотреть объект вживую, договоримся о просмотре.';source=['portfolio'];break;
+      case'start':reply='Чтобы начать, нужен проект или хотя бы ваши пожелания по дому. После согласования подписываем договор, а к работам приступаем после аванса. '+requestContact(s,'details');source=['project'];break;
       case'foundation':reply='Фундамент подбирает инженер по проекту и грунтам участка. Есть результаты геологии?';source=['foundation'];break;
       case'timing':reply='Срок зависит от проекта и объёма работ, а даты этапов закрепляем в договоре. '+next(s);source=['timing'];break;
       case'winter':reply='Да, строим круглый год. '+next(s);source=['timing'];break;
       case'warranty':reply='На дом из газобетона даём гарантию 5 лет, условия закрепляем в договоре. '+next(s);source=['timing'];break;
       case'quality':reply='После подписания договора создаём общий чат по стройке и присылаем подробные фото- и видеоотчёты, в том числе по скрытым работам. Камеры сейчас не ставим: на объектах часто нестабильный мобильный интернет.';source=['quality'];break;
-      case'mortgage':reply='Да, с ипотекой помогаем. '+next(s);source=['mortgage'];break;
+      case'mortgage':reply=(/(?:где|посмотр|покаж).{0,30}проект/.test(t)?'Проекты могу показать здесь в чате. ':'')+(/семейн/.test(t)?'Да, с семейной ипотекой работаем. Подходит ли программа именно вам, окончательно определяет банк. ':'Да, с ипотекой помогаем. ')+next(s);source=/(?:где|посмотр|покаж).{0,30}проект/.test(t)?['mortgage','portfolio']:['mortgage'];break;
       case'approval':reply='Окончательное решение принимает банк. Мы поможем собрать заявку и разобраться с условиями.';source=['mortgage'];break;
       case'escrow':reply='Да, работаем через эскроу-счёт. Расскажем, как пройдёт оплата по вашему договору.';source=['mortgage'];break;
       case'installment':reply='Да, рассрочка есть. Условия зависят от проекта и способа оплаты. '+next(s,'details');source=['installment'];break;
@@ -221,8 +233,18 @@ export function turn(old, raw, semantic=null) {
   let replySource='rule';
   if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
+  if(reply&&firstAssistant&&!s.facts.name&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone')){
+    // На первом контакте отвечаем по существу, но вместо анкеты знакомимся.
+    // Вопрос, который фактически не прозвучал, не должен считаться заданным.
+    s.asked=s.asked.slice(0,askedBefore);
+    reply=reply.replace(/\s*[^.!?]*\?\s*$/,'').trim();
+    if(!/(?:меня зовут\s+иван|я\s+иван)/i.test(reply))reply='Добрый день! Меня зовут Иван. '+reply;
+    reply=(reply+' Как могу к вам обращаться?').replace(/\s+/g,' ').trim();
+    ask(s,'name','');
+  }
   if(reply&&firstAssistant&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone')){
-    if(!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply))reply='Добрый день! Меня зовут Иван. '+reply;
+    if(s.facts.name&&!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply))reply=`Добрый день, ${s.facts.name.value}! Меня зовут Иван. `+reply;
+    else if(!/^(?:добрый\s+(?:день|вечер)|здравствуйте|привет)/i.test(reply))reply='Добрый день! Меня зовут Иван. '+reply;
     else if(!/(?:меня зовут\s+иван|я\s+иван)/i.test(reply))reply=reply.replace(/^((?:добрый\s+(?:день|вечер)|здравствуйте|привет)[!.]?)/i,'$1 Меня зовут Иван.');
   }
   if(reply&&s.style.humanImperfection&&!s.style.imperfectionUsed){const imperfect=addHumanImperfection(reply,s.id);if(imperfect!==reply){reply=imperfect;s.style.imperfectionUsed=true;}}
