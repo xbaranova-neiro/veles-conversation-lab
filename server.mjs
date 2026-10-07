@@ -8,8 +8,8 @@ import {newConversation,turn,detect} from './engine.mjs';
 import {generate} from './ai.mjs';
 import {runChecks} from './checks.mjs';
 const root=new URL('./public/',import.meta.url);
-const files=new Map([['/','index.html'],['/app.mjs','app.mjs'],['/style.css','style.css'],['/knowledge.mjs','knowledge.mjs']]);
-const types={html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8'};
+const files=new Map([['/','index.html'],['/app.mjs','app.mjs'],['/style.css','style.css'],['/knowledge.mjs','knowledge.mjs'],...['a60','a70','a80','a90','a100'].flatMap(id=>[[`/projects/${id}-cover.jpg`,`projects/${id}-cover.jpg`],[`/projects/${id}-plan.jpg`,`projects/${id}-plan.jpg`]])]);
+const types={html:'text/html; charset=utf-8',mjs:'text/javascript; charset=utf-8',css:'text/css; charset=utf-8',jpg:'image/jpeg'};
 const conversationTitle=state=>{
  const first=state.messages.find(message=>message.role==='user')?.text?.trim();
  return first?(first.length>38?first.slice(0,38)+'…':first):'Новый диалог';
@@ -95,11 +95,11 @@ export function createApp({archiveFile=null}={}){
     if(session.state.messages.length>=100){send(400,{error:'Тестовый диалог достиг лимита. Скачайте его и начните новый.'});return;}
     session.busy=true;
     try{
-     let semantic=null;const localPlan=turn(session.state,data.text);
-     if(session.settings.mode==='ai'&&!localPlan.locked)semantic=await generate(session.state,data.text,session.settings);
+     let semantic=null,aiWarning='';const localPlan=turn(session.state,data.text);
+     if(session.settings.mode==='ai'&&!localPlan.locked){try{semantic=await generate(session.state,data.text,session.settings);}catch(error){aiWarning=error.message||'AI временно недоступен.';}}
      const result=turn(session.state,data.text,semantic);session.state=result.state;
      archive.save(id,session);
-     send(200,{...result,conversations:conversationList(session),mode:session.settings.mode,usedModel:!!semantic});
+     send(200,{...result,conversations:conversationList(session),mode:session.settings.mode,usedModel:!!semantic,aiWarning});
     }finally{session.busy=false;}return;
    }
    send(404,{error:'Метод не найден'});

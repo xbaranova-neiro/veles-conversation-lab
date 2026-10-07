@@ -1,4 +1,4 @@
-import { fieldLabels } from './public/knowledge.mjs';
+import { fieldLabels, projects } from './public/knowledge.mjs';
 export const INTENTS = ['greeting','just_browsing','tone_feedback','price','price_conflict','estimate','packages','windows','warm','finish','utilities','land','region','project','examples','portfolio','start','foundation','timing','winter','warranty','quality','mortgage','approval','escrow','installment','free_project','office','company_phone','human','expensive','thanks','identity','stop','no_calls','no_phone','unknown'];
 const norm = t => t.toLowerCase().replaceAll('ё','е').replace(/кв\.?\s*м\.?/g,'м²').replace(/расч[еи]т|расчет/g,'расчет');
 export function newConversation(id='test',{humanImperfection=false}={}) {
@@ -13,8 +13,24 @@ function addHumanImperfection(reply,id){
   return reply.replace(/^([А-ЯЁ])/,letter=>letter.toLowerCase());
 }
 const put=(s,k,value,evidence)=>{ if(value && fieldLabels[k]) s.facts[k]={value:String(value),evidence}; };
+const formatPrice=value=>new Intl.NumberFormat('ru-RU').format(value)+' ₽';
+const projectsFromText=text=>projects.filter(project=>new RegExp(`(?:^|\\s|проект\\s+)[аa][\\s-]?${project.area}(?:\\s*гб)?(?=\\s|[,.!?]|$)`,'i').test(norm(text)));
+const projectFromText=text=>projectsFromText(text)[0]||null;
+const projectFromState=s=>projects.find(project=>project.name===s.facts.project?.value)||null;
+const closestProject=area=>projects.reduce((best,project)=>Math.abs(project.area-area)<Math.abs(best.area-area)?project:best,projects[0]);
+const pricesFor=project=>`${project.name}: «Стандарт» — ${formatPrice(project.prices.standard)}, «Комфорт» — ${formatPrice(project.prices.comfort)}, «Лайтбокс» — ${formatPrice(project.prices.lightbox)}.`;
+const cardIdsFor=s=>{const selected=projectFromState(s);if(selected)return [selected.id];const area=parseInt(s.facts.area?.value);if(area)return [closestProject(area).id];return projects.map(project=>project.id);};
+const recommendedCardIds=s=>{
+  const selected=projectFromState(s);if(selected)return [selected.id];
+  if(/два санузла|гардеробная|котельная/.test(s.facts.wishes?.value||''))return ['a90','a100'];
+  const area=parseInt(s.facts.area?.value);if(area){const closest=closestProject(area),index=projects.indexOf(closest);return [closest,projects[index+(area>closest.area?1:-1)]].filter(Boolean).slice(0,2).map(project=>project.id);}
+  const budget=parseFloat((s.facts.budget?.value||'').replace(',','.'))*1000000;if(budget){const affordable=projects.filter(project=>project.prices.comfort<=budget);return (affordable.length?affordable.slice(-2):projects.slice(0,2)).map(project=>project.id);}
+  return [];
+};
 export function extract(s, raw) {
   const t=norm(raw);
+  const namedProjects=projectsFromText(raw);
+  if(namedProjects.length===1)put(s,'project',namedProjects[0].name,namedProjects[0].name);
   const number=raw.match(/(?<!\d)(?:\+7|8|7)[\s(-]*9\d{2}[\s)-]*\d{3}[\s-]*\d{2}[\s-]*\d{2}(?!\d)/);
   if(number) put(s,'phone','+7'+number[0].replace(/\D/g,'').slice(1),number[0]);
   const name=raw.match(/(?:меня зовут|мое имя|моё имя|зовут меня)\s+([А-Яа-яЁё-]{2,30})/i);
@@ -50,11 +66,12 @@ export function extract(s, raw) {
   const time=raw.match(/(?:после|до|с)\s+\d{1,2}(?::\d{2})?(?:\s*(?:до|[-–])\s*\d{1,2}(?::\d{2})?)?|(?:утром|вечером|завтра|в выходные)/i);
   if(time && (/звон|связ|удобн|номер|телефон/.test(t)||number||s.handoff)) put(s,'contactTime',time[0],time[0]);
   const beds=t.match(/(\d)\s*спальн/);if(beds)put(s,'bedrooms',beds[1],beds[0]);
+  else {const wordBeds=t.match(/(две|три|четыре)\s+спальн/);if(wordBeds)put(s,'bedrooms',({две:'2',три:'3',четыре:'4'})[wordBeds[1]],wordBeds[0]);}
   const timing=t.match(/(?:строить|начать|начинать|начинаем|начало|строительство)\s+(?:хотим\s+)?(?:в\s+|на\s+)?(весн[а-я]*|лет[а-я]*|осен[а-я]*|зим[а-я]*|20\d\d(?:\s*году)?)/);
   if(timing){const season=/^весн/.test(timing[1])?'весной':/^лет/.test(timing[1])?'летом':/^осен/.test(timing[1])?'осенью':/^зим/.test(timing[1])?'зимой':timing[1];put(s,'timing',season,timing[0]);}
   else if(/(?:строить|начать|начинать|строительство|планах).{0,25}(?:через год|в следующем году|на следующий год)/.test(t))put(s,'timing','примерно через год',raw);
   const wishes=[];
-  for(const [rx,label] of [[/террас/,'терраса'],[/гараж/,'гараж'],[/котельн/,'котельная'],[/панорамн.*окн/,'панорамные окна'],[/второй свет/,'второй свет'],[/бан[яю]/,'баня'],[/кабинет/,'кабинет']])if(rx.test(t))wishes.push(label);
+  for(const [rx,label] of [[/террас/,'терраса'],[/гараж/,'гараж'],[/котельн/,'котельная'],[/два сануз|2 сануз/,'два санузла'],[/гардероб/,'гардеробная'],[/больш.*кух|просторн.*кух/,'большая кухня-гостиная'],[/панорамн.*окн/,'панорамные окна'],[/второй свет/,'второй свет'],[/бан[яю]/,'баня'],[/кабинет/,'кабинет']])if(rx.test(t))wishes.push(label);
   if(wishes.length)put(s,'wishes',wishes.join(', '),raw);
 }
 export function detect(raw) {
@@ -91,7 +108,7 @@ export function detect(raw) {
   if(/какая информация.*нуж|что (?:нужно|надо).*(?:начать|работ|договор)|как (?:начать|приступить|оформить)/.test(t))return 'start';
   if(/(?:сво[йиему]+|мо[йему]+|измен|планиров|доработ|индивидуальн).*проект|проект.*(?:сво|измен)|планировк/.test(t))return 'project';
   if(/построенн|работы|экскурс|вживую|готовые дома|фотограф|где.*проект|посмотреть.*проект/.test(t))return 'portfolio';
-  if(/покаж|пример(?!н)|вариант|подбер|подбор|каталог/.test(t))return 'examples';
+  if(/покаж|пример(?!н)|вариант|подбер|подбор|каталог|сравн|выбираю между/.test(t))return 'examples';
   if(/(?:строите|работаете|стройте).*(?:в |калуг|моск|тул)|(?:калуг|моск|тул).*строите/.test(t))return 'region';
   if(/участ/.test(t))return 'land';
   if(/^(?:спасибо|благодарю|понятно|ок|хорошо)[.!\s]*$/.test(t))return 'thanks';
@@ -108,15 +125,16 @@ function ask(s,field,text){if(s.asked.includes(field))return '';s.asked.push(fie
 function requestContact(s,kind='details'){
   if(s.facts.phone||s.noCalls||s.phoneRefused)return '';
   const lines={
-    calculation:'Давайте сделаем расчёт под ваш дом и обсудим его по телефону. Можно ваш номер?',
-    budget:'Давайте посмотрим, как уложиться в ваш бюджет. Можно ваш номер телефона?',
+    project:'Могу отправить планировку и все три цены этого проекта в Telegram. На какой номер отправить?',
+    changes:'Чтобы обсудить изменения и условия по выбранному проекту, давайте созвонимся. Можно ваш номер?',
+    budget:'Давайте подберём из пяти проектов вариант в ваш бюджет и обсудим условия. Можно ваш номер телефона?',
     details:'Давайте коротко созвонимся и обсудим детали. Можно ваш номер?'
   };
   return ask(s,'phone',lines[kind]||lines.details);
 }
 function knownPlan(s){
   return [
-    s.facts.area||s.facts.floors,
+    s.facts.project||s.facts.area||s.facts.floors,
     s.facts.purpose,
     s.facts.region||s.facts.land,
     s.facts.timing,
@@ -127,8 +145,7 @@ function knownPlan(s){
 function next(s,kind='details'){
   const hasPlan=knownPlan(s);
   const qualificationAsked=s.asked.filter(field=>['area','purpose','timing','region','land','budget_payment','wishes'].includes(field)).length;
-  // Three useful details or three qualification questions are enough. After
-  // that, move to the phone instead of continuing the questionnaire.
+  if(s.facts.project&&(hasPlan>=2||qualificationAsked>=2))return requestContact(s,'project');
   if(hasPlan>=3||qualificationAsked>=3){
     if(s.noCalls||s.phoneRefused){
       if(!s.facts.budget&&!s.facts.payment){const q=ask(s,'budget_payment','На какой бюджет рассчитываете?');if(q)return q;}
@@ -155,6 +172,7 @@ export function turn(old, raw, semantic=null) {
     if(fact.field!=='phone' && fact.evidence?.length>=2 && raw.toLowerCase().includes(fact.evidence.toLowerCase()) && fact.value.length<=100 && !s.facts[fact.field])put(s,fact.field,fact.value,fact.evidence);
   }
   let detected=detect(raw);
+  if(detected==='unknown'&&projectFromText(raw))detected='project';
   let intent=detected==='unknown'&&INTENTS.includes(semantic?.intent)?semantic.intent:detected;
   s.intent=intent;
   let reply='', source=[],locked=false, cards=[];
@@ -172,8 +190,10 @@ export function turn(old, raw, semantic=null) {
     locked=true;reply='Да, я тут.';
   }else if(added.includes('name')&&old.asked.at(-1)==='name'){
     locked=true;
-    const afterName=knownPlan(s)>=3||old.intent==='human'||old.intent==='start'?requestContact(s,'details')
-      :old.intent==='price'||old.intent==='price_conflict'||old.intent==='estimate'?ask(s,'area','По площади примерно сколько хотите и в один этаж или два?')
+    const afterName=s.facts.project?ask(s,'package','Какую комплектацию смотрите: «Стандарт», «Комфорт» или «Лайтбокс»?')
+      :(old.intent==='examples'||old.intent==='portfolio')?ask(s,'area','По площади какой вариант ближе: 60, 70, 80, 90 или 100 м²?')
+      :knownPlan(s)>=3||old.intent==='human'||old.intent==='start'?requestContact(s,s.facts.project?'project':'details')
+      :old.intent==='price'||old.intent==='price_conflict'||old.intent==='estimate'?ask(s,'area','По площади какой вариант ближе: 60, 70, 80, 90 или 100 м²?')
       :old.intent==='greeting'?ask(s,'topic','Что хотели узнать?')
       :s.facts.region?next(s):ask(s,'region','В каком районе планируете строить дом?');
     reply=`${s.facts.name.value}, приятно познакомиться. ${afterName}`;
@@ -181,8 +201,8 @@ export function turn(old, raw, semantic=null) {
     locked=true;reply='Хорошо. Может, у вас есть вопросы по дому или ипотеке? Спрашивайте.';
   }else if(/(?:как|из)\s+(?:в\s+)?объявлен|(?:вариант|дом|такой\s+же).{0,30}(?:из|как|в)\s+объявлен/.test(t)){
     locked=true;source=['project'];
-    const followUp=s.facts.land?next(s):ask(s,'land','Участок у вас уже есть?');
-    reply='Понял. Расчёт делаем индивидуально под ваш участок: сначала обсудим планировку и особенности участка, потом посчитаем стоимость.'+(followUp?' '+followUp:'');
+    const followUp=ask(s,'area','По площади какой вариант ближе: 60, 70, 80, 90 или 100 м²?');
+    reply='Понял. У нас есть пять готовых проектов с фиксированными ценами и планировками.'+(followUp?' '+followUp:'');
   }else if(intent==='no_calls'||intent==='no_phone'){
     s.noCalls=true;s.phoneRefused=intent==='no_phone'||s.phoneRefused;s.channel='Чат Авито';locked=true;
     reply=(intent==='no_calls'?'Хорошо, без звонков — продолжим здесь. ':'Хорошо, продолжим здесь. ')+next(s);
@@ -193,23 +213,25 @@ export function turn(old, raw, semantic=null) {
     locked=true;reply='';event(s,'Новое сообщение добавлено в тестовую карточку. Помощник на паузе.');
   }else if(intent==='human'){
     reply='Конечно. '+requestContact(s,'details');
+  }else if(s.asked.at(-1)==='phone'&&/^(?:да|давайте|хорошо|можно|отправьте|пришлите)[.!\s]*$/.test(t)){
+    locked=true;reply=s.facts.project?'Да, конечно. На какой номер Telegram отправить материалы по проекту?':'Да, конечно. Какой номер телефона у вас для связи?';
   }else{
     switch(intent){
       case'greeting':reply='Добрый день! Я Иван. Что по дому хотите узнать?';break;
-      case'tone_feedback':reply=old.intent==='mortgage'?'Извините, неудачно написал. Да, с ипотекой работаем. Дом хотите для себя?':old.intent==='price'||old.intent==='price_conflict'?'Извините, неудачно написал. Давайте посчитаем именно ваш дом. По площади сколько хотите?':'Извините, неудачно написал. Скажите, что именно хотите узнать?';break;
+      case'tone_feedback':reply=old.intent==='mortgage'?'Извините, неудачно написал. Да, с ипотекой работаем. Дом хотите для себя?':old.intent==='price'||old.intent==='price_conflict'?'Извините, неудачно написал. Цены уже готовы для пяти проектов. Какая площадь вам ближе?':'Извините, неудачно написал. Скажите, что именно хотите узнать?';break;
       case'identity':reply='Я виртуальный помощник компании «Велес», в тестовом чате меня зовут Иван. Помогу разобраться с первыми вопросами.';break;
-      case'price_conflict':reply='Цена может отличаться из-за проекта и участка. По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². '+next(s,'calculation');source=['price'];break;
-      case'estimate':reply=(s.facts.area?`Да, посчитаем дом ${s.facts.area.value}.`:'Да, можем посчитать.')+' '+next(s,'calculation');source=['price'];break;
-      case'price':reply=(/умнож|за метр/.test(t)?'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².':s.facts.area?`Для дома ${s.facts.area.value} всё зависит от планировки и участка. Тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м².`:'По цене сейчас так: тёплый контур — 60–80 тыс. ₽/м², предчистовая отделка — от 80 тыс. ₽/м². Точнее скажу, когда пойму сам дом и участок.')+' '+next(s,'calculation');source=['price'];break;
-      case'packages':{const basic=/базов/.test(t);if(basic)locked=true;reply=basic?'Базовая комплектация — это коробка дома без окон и дверей. Дальше состав работ подбираем под ваш проект. '+next(s,'calculation'):'Тут всё зависит от того, какой дом вам нужен и какой бюджет. '+next(s,'calculation');source=['packages'];break;}
-      case'windows':reply='Окна и двери обязательно учтём в расчёте под ваш проект. '+next(s,'calculation');source=['packages'];break;
-      case'warm':reply='Да, можем рассчитать тёплый контур под ваш проект. '+next(s,'calculation');source=['packages'];break;
-      case'finish':reply='Понял, нужен дом с отделкой. '+next(s,'calculation');source=['packages'];break;
-      case'utilities':reply='Уточню, что войдёт в расчёт по коммуникациям. Что уже есть на участке?';source=['packages'];break;
+      case'price_conflict':{const project=projectFromState(s);reply=project?pricesFor(project)+' Цена фиксирована для готового проекта, а изменения считаются отдельно. '+requestContact(s,'changes'):'У пяти готовых проектов цены уже зафиксированы. '+ask(s,'area','Какую площадь смотрите: 60, 70, 80, 90 или 100 м²?');source=['price'];break;}
+      case'estimate':{const project=projectFromState(s)||(s.facts.area?closestProject(parseInt(s.facts.area.value)):null);if(project){put(s,'project',project.name,s.facts.area?.evidence||project.name);cards=[project.id];reply=pricesFor(project)+' '+requestContact(s,'project');}else reply='Для пяти готовых проектов цены уже посчитаны. '+ask(s,'area','Какую площадь показать: 60, 70, 80, 90 или 100 м²?');source=['price','project'];break;}
+      case'price':{const project=projectFromState(s)||(s.facts.area?closestProject(parseInt(s.facts.area.value)):null);if(project){if(!s.facts.project)put(s,'project',project.name,s.facts.area?.evidence||project.name);cards=[project.id];reply=pricesFor(project)+' '+(s.facts.name?requestContact(s,'project'):next(s));}else reply='Есть пять готовых домов от 60 до 100 м². В «Стандарте» цены от 3 800 000 до 5 500 000 ₽. '+ask(s,'area','Какую площадь рассматриваете?');source=['price','project'];break;}
+      case'packages':{const project=projectFromState(s);reply=project?pricesFor(project)+' Точный состав каждой комплектации лучше обсудить отдельно. '+requestContact(s,'changes'):'Цены есть в трёх комплектациях: «Стандарт», «Комфорт» и «Лайтбокс». '+ask(s,'area','Какой проект показать: 60, 70, 80, 90 или 100 м²?');source=['price','packages'];break;}
+      case'windows':reply='Окна и двери зависят от выбранной комплектации. Чтобы не ошибиться с составом, сначала выберем проект. '+(s.facts.project?requestContact(s,'changes'):ask(s,'area','Какую площадь смотрите?'));source=['packages'];break;
+      case'warm':reply='Для готовых проектов есть три комплектации с фиксированными ценами. '+(s.facts.project?requestContact(s,'changes'):ask(s,'area','Какую площадь смотрите?'));source=['packages'];break;
+      case'finish':reply='Понял, смотрите более готовую комплектацию. '+(s.facts.project?requestContact(s,'changes'):ask(s,'area','Какая площадь нужна: 60, 70, 80, 90 или 100 м²?'));source=['packages'];break;
+      case'utilities':reply='Коммуникации и дополнительные работы обсуждаем отдельно от фиксированной цены проекта. Что уже есть на участке?';source=['packages'];break;
       case'land':reply=/входит|вместе|включен|цен/.test(t)?'Участок в стоимость дома не входит, но с подбором поможем.':s.facts.land?.value==='Есть'?'Отлично, участок уже есть.':'Хорошо, поможем подобрать участок.';reply+=' '+next(s);source=['land'];break;
       case'region':reply='Да, строим в Тульской, Московской и Калужской областях. '+(s.facts.region?next(s):ask(s,'region','В каком городе или районе хотите строить?'));source=['company'];break;
-      case'project':reply='Да, можем взять ваш проект или поменять планировку. Что хотите изменить?';source=['project'];break;
-      case'examples':if(!s.facts.purpose){reply='Дом для себя жить или как дачу?';s.asked.push('purpose');}else{cards=s.facts.purpose.value==='Сезонное проживание'?['237']:s.facts.area&&parseInt(s.facts.area.value)>=120?['93']:[];reply=cards.length?'Вот этот проект можно взять за основу. Планировку потом подгоним под вас.':'Подберём. Сколько спален нужно?';}source=['project'];break;
+      case'project':{const project=projectFromState(s);if(project){cards=[project.id];reply=`${project.name} — ${project.area} м², ${project.features} ${pricesFor(project)} `+requestContact(s,'changes');}else reply='Можно обсудить изменения в одном из пяти готовых проектов, но тогда стоимость может поменяться. '+ask(s,'area','Какой вариант берём за основу: 60, 70, 80, 90 или 100 м²?');source=['project','price'];break;}
+      case'examples':{const mentioned=projectsFromText(raw);cards=mentioned.length?mentioned.map(project=>project.id):recommendedCardIds(s);if(cards.length){const selected=cards.map(id=>projects.find(project=>project.id===id));if(selected.length===2)reply=`${selected[0].name}: ${selected[0].features} ${selected[1].name}: ${selected[1].features}`;else reply=selected.length===1?`Покажу ${selected[0].name}: ${selected[0].features}`:`Я бы сравнил ${selected.slice(0,2).map(project=>project.name).join(' и ')} — они ближе всего к вашему запросу.`;reply+=' '+(s.facts.name?requestContact(s,'project'):next(s));}else reply='Подберу из пяти готовых проектов. '+ask(s,'area','По площади какой вариант ближе: 60, 70, 80, 90 или 100 м²?');source=['project','price'];break;}
       case'portfolio':{const ready=/готов.*(?:дом|в наличии)|(?:дом|дома).*в наличии/.test(t);if(ready)locked=true;reply=ready?'Готовых домов в наличии нет, мы строим под заказ. Так можно выбрать планировку и контролировать материалы и этапы работ. '+next(s):'Проекты и построенные дома могу показать здесь. Если захотите посмотреть объект вживую, договоримся о просмотре.';source=['portfolio'];break;}
       case'start':locked=true;reply='Чтобы начать, нужен проект или хотя бы ваши пожелания по дому. После согласования подписываем договор, а к работам приступаем после аванса. '+requestContact(s,'details');source=['project'];break;
       case'foundation':reply='Фундамент подбирает инженер по проекту и грунтам участка. Есть результаты геологии?';source=['foundation'];break;
@@ -224,15 +246,19 @@ export function turn(old, raw, semantic=null) {
       case'free_project':reply='Если готовый проект подходит участку, отдельно за разработку платить не нужно. Если надо что-то менять, тогда сначала оценим доработку.';source=['project'];break;
       case'office':reply='Тула, ул. Вяземская, 18Л, офис 205, 2-й этаж. Работаем пн–пт 9:00–18:00 и сб 9:00–14:00.';source=['office'];break;
       case'company_phone':reply='Наш телефон: +7 (967) 555-24-44.';source=['office'];break;
-      case'expensive':reply=s.facts.budget?'Давайте посчитаем, что можно сделать в эту сумму. '+next(s,'budget'):ask(s,'budget','Давайте сначала посчитаем ваш вариант. На какой бюджет рассчитываете?');break;
-      case'thanks':reply='Пожалуйста!';break;
-      default:if(added.length){reply=(added.includes('region')?'Понял.':added.includes('area')?`Хорошо, примерно ${s.facts.area.value}.`:added.includes('purpose')?s.facts.purpose.value==='Постоянное проживание'?'Понял, дом для себя.':'Понял, дом как дача.':added.includes('timing')?'Хорошо, по срокам понял.':added.includes('budget')?'Понял, попробуем уложиться.':'Хорошо.')+' '+next(s,added.includes('budget')?'budget':'details');}else if(/^(?:да|нет|есть|нету)[.!\s]*$/.test(t)){reply='Не понял, это про что?';}else{reply='Что по дому хотите узнать?';}
+      case'expensive':reply=s.facts.budget?'Покажу, какой из готовых проектов ближе к этой сумме. '+next(s,'budget'):ask(s,'budget','Могу подобрать из пяти проектов вариант ближе к вашему бюджету. На какую сумму рассчитываете?');break;
+      case'thanks':reply='Пожалуйста! Что ещё хотите уточнить?';break;
+      default:if(added.includes('package')&&projectFromState(s)){const project=projectFromState(s),key=s.facts.package.value.toLowerCase(),price=key.includes('стандарт')?project.prices.standard:key.includes('комфорт')?project.prices.comfort:project.prices.lightbox;reply=`${project.name} в комплектации «${s.facts.package.value}» стоит ${formatPrice(price)}. `+requestContact(s,'project');source=['price','packages'];cards=[project.id];}else if(added.includes('area')){const project=closestProject(parseInt(s.facts.area.value));put(s,'project',project.name,s.facts.area.evidence);cards=[project.id];reply=`Тогда посмотрите ${project.name}: ${project.features} ${pricesFor(project)} `+ask(s,'package','Какую комплектацию хотите обсудить?');source=['project','price'];}else if(added.includes('budget')){cards=recommendedCardIds(s);reply='Понял. Покажу варианты, которые ближе к вашему бюджету. '+ask(s,'area','По площади какой дом нужен?');source=['project','price'];}else if(added.length){reply=(added.includes('region')?'Понял.':added.includes('purpose')?s.facts.purpose.value==='Постоянное проживание'?'Понял, дом для себя.':'Понял, дом как дача.':added.includes('timing')?'Хорошо, по срокам понял.':'Хорошо.')+' '+next(s);}else if(/^(?:да|нет|есть|нету)[.!\s]*$/.test(t)){reply='Не понял, это про что?';}else{reply='Что по дому хотите узнать?';}
     }
   }
   // Replace only conversational text, never contact/stop/handoff decisions.
   let replySource='rule';
   if(semantic?.reply&&!locked && validReply(semantic.reply,s,reply)){reply=semantic.reply;replySource='ai';}
   reply=reply.trim().replace(/\s+/g,' ');
+  if(reply&&!locked&&s.status==='active'&&!added.includes('phone')&&!reply.includes('?')&&!['stop'].includes(intent)){
+    const continuation=next(s);
+    if(continuation)reply=(reply+' '+continuation).trim();
+  }
   if(reply&&firstAssistant&&!s.facts.name&&!['stop','no_calls','no_phone'].includes(intent)&&!added.includes('phone')){
     // На первом контакте отвечаем по существу, но вместо анкеты знакомимся.
     // Вопрос, который фактически не прозвучал, не должен считаться заданным.
@@ -256,14 +282,14 @@ export function turn(old, raw, semantic=null) {
 export function validReply(reply,s,fallback){
   if(typeof reply!=='string'||reply.length>300||!reply.trim()||(reply.match(/\?/g)||[]).length>1)return false;
   if(s.messages.some(message=>message.role==='assistant')&&/(?:здравствуйте|добрый\s+(?:день|вечер)|меня зовут\s+иван|я\s+иван)/i.test(reply))return false;
-  if(/без спешки|не торопитесь|спокойно сориент|(?:грубая цена|цена грубая|грубый расч[её]т)|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
+  if(/без спешки|не торопитесь|спокойно сориент|что\s+(?:вы\s+)?(?:там\s+)?надумал|определились\s+ли\s+вы|(?:грубая цена|цена грубая|грубый расч[её]т)|ориентир(?:уетесь|оваться)|^\s*(?:для )?ориентир\s*:|рассматриваете|под ваши параметры|подходящее решение|оптимальн|на данном этапе|в вашем случае|более подробно|учтём все (?:ваши )?пожелан|для начала|исходя из|с учётом|что касается|понимаю ваш вопрос/i.test(reply))return false;
   if(/на сайте|с сайта|по данным сайта|в базе|не подтвержден|расходятся|нет проверенн|тестов|симуляц/i.test(reply))return false;
   if(/(?:пришл|отправ|скин).*(?:скрин|скриншот|ссылк|фото.*объявлен)|(?:скрин|скриншот|ссылк).*(?:объявлен|пришл|отправ|скин)/i.test(reply))return false;
   if(/менеджер|передам|передадим|передан|тестовая карточка/i.test(reply))return false;
   if(/(?:передал|отправил|записал|заброниров|расчет готов|смета готов|гарантируем|точно одобр|я менеджер)/i.test(reply))return false;
   if(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i.test(reply)&&!fallback.toLowerCase().includes(reply.toLowerCase().match(/(?:один|одна|два|две|три|четыре|пять|шесть|семь|восемь|девять|десять)\s+(?:миллион|тысяч)/i)?.[0]||'§'))return false;
   if(/(?:миллион|тысяч|рубл|₽|бесплатно всем|одобрим|без отказа)/i.test(reply)&&!/(?:миллион|тысяч|рубл|₽)/i.test(fallback))return false;
-  const contactAsk=/(?:остав(?:ьте|ите)|напишите|дайте|подскажите).*(?:номер|телефон)|можно\s+(?:ваш\s+)?(?:номер|телефон)|(?:номер|телефон).*(?:остав(?:ьте|ите)|напишите)/i;
+  const contactAsk=/(?:остав(?:ьте|ите)|напишите|дайте|подскажите).*(?:номер|телефон)|можно\s+(?:ваш\s+)?(?:номер|телефон)|на какой номер|(?:номер|телефон).*(?:остав(?:ьте|ите)|напишите)/i;
   // If deterministic funnel logic has reached the contact step, the model may
   // rephrase that request but must not replace it with another qualification.
   if(contactAsk.test(fallback)&&!contactAsk.test(reply))return false;
